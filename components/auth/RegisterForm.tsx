@@ -1,14 +1,15 @@
-'use client'; // Tambahkan ini jika menggunakan Next.js App Router
+'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Eye, EyeOff, ShoppingBag, CheckCircle2, XCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Eye, EyeOff, ShoppingBag, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import supabase from '@/lib/db';
 
-// Definisikan tipe untuk state agar TypeScript tidak error
 type FormErrors = {
     username?: string;
     email?: string;
@@ -16,12 +17,16 @@ type FormErrors = {
     confirmPassword?: string;
 };
 
-type ToastState = {
+type AlertState = {
     message: string;
     type: 'success' | 'error';
-};
+}
 
 export default function RegisterForm() {
+    const router = useRouter();
+    const [isLoading, setIsLoading] = useState(false);
+    const [alertMessage, setAlertMessage] = useState<AlertState | null>(null);
+
     const [formData, setFormData] = useState({
         username: '',
         email: '',
@@ -31,9 +36,7 @@ export default function RegisterForm() {
 
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    // Gunakan tipe yang sudah didefinisikan
     const [errors, setErrors] = useState<FormErrors>({});
-    const [toast, setToast] = useState<ToastState | null>(null);
 
     const validateForm = () => {
         const newErrors: FormErrors = {};
@@ -66,30 +69,56 @@ export default function RegisterForm() {
         return Object.keys(newErrors).length === 0;
     };
 
-    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-        setToast({ message, type });
-        setTimeout(() => setToast(null), 3000);
-    };
-
-    // Tipe event di sini adalah untuk form, bukan button click
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        setAlertMessage(null); // Reset alert setiap kali submit
 
-        if (validateForm()) {
-            showToast('Registrasi berhasil! Selamat datang di Lapak12 🎉', 'success');
-            console.log('Form data:', formData);
-            setFormData({
-                username: '',
-                email: '',
-                password: '',
-                confirmPassword: ''
+        if (!validateForm()) {
+            setAlertMessage({
+                type: 'error',
+                message: 'Mohon periksa kembali form yang Anda isi.',
             });
-        } else {
-            showToast('Mohon periksa kembali form Anda', 'error');
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            const { error } = await supabase.auth.signUp({
+                email: formData.email,
+                password: formData.password,
+                options: {
+                    data: {
+                        username: formData.username,
+                        role: 'pembeli',
+                    },
+                },
+            });
+
+            if (error) {
+                setAlertMessage({
+                    type: 'error',
+                    message: error.message || "Terjadi kesalahan, coba lagi.",
+                });
+            } else {
+                setAlertMessage({
+                    type: 'success',
+                    message: 'Registrasi Berhasil! Silakan cek email untuk verifikasi.',
+                });
+                setTimeout(() => {
+                    router.push('/login');
+                }, 2000);
+            }
+        } catch (err) {
+            setAlertMessage({
+                type: 'error',
+                message: "Terjadi kesalahan pada sistem. Coba lagi nanti.",
+            });
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    // Beri tipe pada event handler
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({
@@ -106,22 +135,6 @@ export default function RegisterForm() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
-            {toast && (
-                <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2">
-                    <Alert className={`${toast.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'} shadow-lg flex items-center gap-3`}>
-                        {/* Ikon dan AlertDescription sekarang menjadi anak langsung dari Alert */}
-                        {toast.type === 'success' ? (
-                            <CheckCircle2 className="h-5 w-5 text-green-600" />
-                        ) : (
-                            <XCircle className="h-5 w-5 text-red-600" />
-                        )}
-                        <AlertDescription>
-                            {toast.message}
-                        </AlertDescription>
-                    </Alert>
-                </div>
-            )}
-
             <div className="w-full max-w-md">
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg">
@@ -137,8 +150,17 @@ export default function RegisterForm() {
                         <CardDescription>Isi formulir di bawah untuk mendaftar</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {/* Gunakan tag <form> dengan onSubmit */}
                         <form onSubmit={handleSubmit} className="space-y-4">
+                            {alertMessage && (
+                                <Alert variant={alertMessage.type === 'error' ? 'destructive' : 'default'} className={alertMessage.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : ''}>
+                                    {alertMessage.type === 'success' ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                                    <AlertTitle>{alertMessage.type === 'success' ? 'Berhasil' : 'Gagal Mendaftar'}</AlertTitle>
+                                    <AlertDescription>
+                                        {alertMessage.message}
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+
                             <div className="space-y-2">
                                 <Label htmlFor="username">Username</Label>
                                 <Input
@@ -236,14 +258,16 @@ export default function RegisterForm() {
                             <Button
                                 type="submit"
                                 className="w-full bg-blue-600 hover:bg-blue-700"
+                                disabled={isLoading}
                             >
-                                Daftar Sekarang
+                                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                {isLoading ? 'Mendaftarkan...' : 'Daftar Sekarang'}
                             </Button>
                         </form>
 
                         <p className="text-center text-sm text-gray-600 mt-6">
                             Sudah punya akun?{' '}
-                            <a href="#" className="text-blue-600 hover:text-blue-700 font-semibold hover:underline">
+                            <a href="/login" className="text-blue-600 hover:text-blue-700 font-semibold hover:underline">
                                 Masuk di sini
                             </a>
                         </p>
@@ -260,3 +284,4 @@ export default function RegisterForm() {
         </div>
     );
 }
+
