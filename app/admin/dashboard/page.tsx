@@ -6,7 +6,7 @@ import { LogOut, UserCircle } from "lucide-react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
-export default async function HomePage() {
+export default async function DashboardPage() {
     const supabase = createServerComponentClient({ cookies });
 
     // 1. Ambil informasi sesi pengguna
@@ -39,13 +39,13 @@ export default async function HomePage() {
             <div className="w-full max-w-2xl">
                 <header className="mb-8 text-center">
                     <h1 className="text-4xl font-bold text-blue-600">Lapak12</h1>
-                    <p className="text-gray-600 mt-2">Selamat datang di dasbor Anda!</p>
+                    <p className="text-gray-600 mt-2">Selamat datang di dasbor Admin!</p>
                 </header>
 
                 <Card className="shadow-lg border-gray-100">
                     <CardHeader className="flex flex-row items-center justify-between">
                         <div className="space-y-1.5">
-                            <CardTitle className="text-2xl">Profil Pengguna</CardTitle>
+                            <CardTitle className="text-2xl">Profil Admin</CardTitle>
                             <CardDescription>Informasi akun Anda yang terdaftar.</CardDescription>
                         </div>
                         <UserCircle className="w-12 h-12 text-gray-300" />

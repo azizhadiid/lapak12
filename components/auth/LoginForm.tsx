@@ -56,11 +56,9 @@ export default function LoginForm() {
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        setAlertMessage(null); // Reset alert setiap kali submit
+        setAlertMessage(null);
 
-        if (!validateForm()) {
-            return;
-        }
+        if (!validateForm()) return;
 
         setIsLoading(true);
 
@@ -74,22 +72,41 @@ export default function LoginForm() {
                 setAlertMessage({
                     message: "Email atau password salah. Silakan coba lagi.",
                 });
-            } else {
-                // Ambil data user dari Supabase
-                const { data: { user } } = await supabase.auth.getUser();
-                const role = user?.user_metadata?.role || 'pembeli';
-
-                if (role === 'admin') {
-                    router.push('/admin/dashboard');
-                } else if (role === 'penjual') {
-                    router.push('/penjual/home');
-                } else {
-                    router.push('/home');
-                }
-                router.refresh();
+                return;
             }
 
+            // 🔹 Ambil data user dari Auth
+            const { data: { user } } = await supabase.auth.getUser();
+            let role = user?.user_metadata?.role;
+
+            // 🔹 Kalau role belum ada di metadata, ambil dari tabel public.users
+            if (!role) {
+                const { data: dbUser, error: dbError } = await supabase
+                    .from('users')
+                    .select('role')
+                    .eq('email', formData.email)
+                    .single();
+
+                if (dbError) {
+                    console.error("Gagal mengambil role dari database:", dbError);
+                } else {
+                    role = dbUser?.role;
+                }
+            }
+
+            // 🔹 Redirect sesuai role
+            if (role === 'admin') {
+                router.push('/admin/dashboard');
+            } else if (role === 'penjual') {
+                router.push('/penjual/home');
+            } else {
+                router.push('/home');
+            }
+
+            router.refresh();
+
         } catch (err) {
+            console.error("Error during login:", err);
             setAlertMessage({
                 message: "Terjadi kesalahan pada sistem. Coba lagi nanti.",
             });
@@ -97,6 +114,7 @@ export default function LoginForm() {
             setIsLoading(false);
         }
     };
+
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;

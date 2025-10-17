@@ -6,7 +6,7 @@ import { LogOut, UserCircle } from "lucide-react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
-export default async function HomePage() {
+export default async function HomePenjualPage() {
     const supabase = createServerComponentClient({ cookies });
 
     // 1. Ambil informasi sesi pengguna
@@ -39,7 +39,7 @@ export default async function HomePage() {
             <div className="w-full max-w-2xl">
                 <header className="mb-8 text-center">
                     <h1 className="text-4xl font-bold text-blue-600">Lapak12</h1>
-                    <p className="text-gray-600 mt-2">Selamat datang di dasbor Anda!</p>
+                    <p className="text-gray-600 mt-2">Selamat datang di dasbor Penjual!</p>
                 </header>
 
                 <Card className="shadow-lg border-gray-100">
