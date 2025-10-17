@@ -76,23 +76,22 @@ export default function LoginForm() {
             }
 
             // 🔹 Ambil data user dari Auth
-            const { data: { user } } = await supabase.auth.getUser();
-            let role = user?.user_metadata?.role;
+            const { data: dbUser, error: dbError } = await supabase
+                .from('users')
+                .select('role')
+                .eq('email', formData.email)
+                .single();
 
-            // 🔹 Kalau role belum ada di metadata, ambil dari tabel public.users
-            if (!role) {
-                const { data: dbUser, error: dbError } = await supabase
-                    .from('users')
-                    .select('role')
-                    .eq('email', formData.email)
-                    .single();
-
-                if (dbError) {
-                    console.error("Gagal mengambil role dari database:", dbError);
-                } else {
-                    role = dbUser?.role;
-                }
+            if (dbError) {
+                console.error("Gagal mengambil role dari database:", dbError);
+                setAlertMessage({
+                    message: "Gagal memverifikasi role pengguna. Coba lagi.",
+                });
+                setIsLoading(false); // Hentikan loading
+                return; // Hentikan eksekusi
             }
+
+            const role = dbUser?.role;
 
             // 🔹 Redirect sesuai role
             if (role === 'admin') {
