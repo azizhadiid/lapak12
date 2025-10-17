@@ -9,8 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Eye, EyeOff, ShoppingBag, Loader2, CheckCircle2, XCircle } from 'lucide-react';
-import supabase from '@/lib/db';
 import { Checkbox } from '../ui/checkbox';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 
 type FormErrors = {
@@ -20,13 +20,14 @@ type FormErrors = {
 
 type AlertState = {
     message: string;
-    type: 'success' | 'error';
 }
 
 export default function LoginForm() {
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(false);
     const [alertMessage, setAlertMessage] = useState<AlertState | null>(null);
+
+    const supabase = createClientComponentClient();
 
     const [formData, setFormData] = useState({
         email: '',
@@ -71,16 +72,25 @@ export default function LoginForm() {
 
             if (error) {
                 setAlertMessage({
-                    type: 'error',
-                    message: "Email atau password salah. Silakan coba lagi.", // Pesan error yang lebih umum
+                    message: "Email atau password salah. Silakan coba lagi.",
                 });
             } else {
-                // Tidak perlu menampilkan alert sukses, langsung arahkan
-                router.push('/'); // Arahkan ke halaman utama/dashboard setelah login
+                // Ambil data user dari Supabase
+                const { data: { user } } = await supabase.auth.getUser();
+                const role = user?.user_metadata?.role || 'pembeli';
+
+                if (role === 'admin') {
+                    router.push('/admin/dashboard');
+                } else if (role === 'penjual') {
+                    router.push('/penjual/home');
+                } else {
+                    router.push('/home');
+                }
+                router.refresh();
             }
+
         } catch (err) {
             setAlertMessage({
-                type: 'error',
                 message: "Terjadi kesalahan pada sistem. Coba lagi nanti.",
             });
         } finally {

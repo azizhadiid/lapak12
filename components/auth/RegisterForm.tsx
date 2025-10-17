@@ -84,6 +84,27 @@ export default function RegisterForm() {
         setIsLoading(true);
 
         try {
+            // 🟡 1️⃣ Cek apakah email sudah ada di tabel users
+            const { data: existingUser, error: checkError } = await supabase
+                .from('users')
+                .select('email')
+                .eq('email', formData.email)
+                .maybeSingle();
+
+            if (checkError) {
+                console.error('Supabase check error:', checkError);
+                throw new Error('Gagal memeriksa email.');
+            }
+
+            if (existingUser) {
+                setAlertMessage({
+                    type: 'error',
+                    message: 'Email sudah terdaftar. Gunakan email lain atau masuk.',
+                });
+                setIsLoading(false);
+                return;
+            }
+
             const { error } = await supabase.auth.signUp({
                 email: formData.email,
                 password: formData.password,

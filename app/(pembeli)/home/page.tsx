@@ -1,17 +1,40 @@
-'use client';
 
 import { Button } from "@/components/ui/button";
+import { cookies } from 'next/headers';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { LogOut, UserCircle } from "lucide-react";
+import { redirect } from "next/navigation";
+import Link from "next/link";
 
-// Di masa depan, data ini akan diambil dari Supabase setelah user login.
-// Untuk sekarang, kita gunakan data statis sebagai contoh.
-const userData = {
-    username: 'Aziza',
-    email: 'aziza@email.com',
-};
+export default async function HomePage() {
+    const supabase = createServerComponentClient({ cookies });
 
-export default function HomePage() {
+    // 1. Ambil informasi sesi pengguna
+    const { data: { session } } = await supabase.auth.getSession();
+
+    // 2. Jika tidak ada sesi (belum login), "pental" ke halaman login
+    if (!session) {
+        redirect('/login');
+    }
+
+    // 3. Jika ada sesi, ambil data profil dari tabel 'users' kita
+    const { data: user, error } = await supabase
+        .from('users')
+        .select(`username, email`)
+        .eq('id', session.user.id)
+        .single();
+
+    if (error || !user) {
+        // Handle kasus jika user ada di auth tapi tidak ada di tabel profil
+        // Ini jarang terjadi jika trigger Anda bekerja dengan baik
+        return (
+            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+                <p>Gagal memuat data pengguna. Silakan coba <Link href="/login" className="text-blue-600">login kembali</Link>.</p>
+            </div>
+        )
+    }
+
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
             <div className="w-full max-w-2xl">
@@ -31,22 +54,24 @@ export default function HomePage() {
                     <CardContent className="space-y-4">
                         <div className="flex flex-col space-y-1">
                             <p className="text-sm font-medium text-gray-500">Username</p>
-                            <p className="text-lg font-semibold text-gray-800">{userData.username}</p>
+                            <p className="text-lg font-semibold text-gray-800">{user.username}</p>
                         </div>
                         <div className="flex flex-col space-y-1">
                             <p className="text-sm font-medium text-gray-500">Email</p>
-                            <p className="text-lg font-semibold text-gray-800">{userData.email}</p>
+                            <p className="text-lg font-semibold text-gray-800">{user.email}</p>
                         </div>
 
-                        <Button
-                            variant="destructive"
-                            className="w-full mt-4"
-                            // Fungsi logout akan kita implementasikan nanti
-                            onClick={() => alert('Fungsi logout belum diimplementasikan.')}
-                        >
-                            <LogOut className="mr-2 h-4 w-4" />
-                            Keluar
-                        </Button>
+                        {/* Tombol Logout sekarang ada di dalam form agar bisa memanggil Server Action */}
+                        <form action="/api/auth/signout" method="post">
+                            <Button
+                                variant="destructive"
+                                className="w-full mt-4"
+                                type="submit"
+                            >
+                                <LogOut className="mr-2 h-4 w-4" />
+                                Keluar
+                            </Button>
+                        </form>
                     </CardContent>
                 </Card>
             </div>
