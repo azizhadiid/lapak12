@@ -3,9 +3,9 @@
 
 // Impor React dan hooks
 import React, { useState } from 'react';
-
+import { useRouter } from 'next/navigation';
 // Impor ikon dari lucide-react
-import { Image as ImageIcon, Upload, Package, DollarSign, Boxes } from 'lucide-react';
+import { Image as ImageIcon, Upload, Package, DollarSign, Boxes, AlertCircle, Loader2 } from 'lucide-react';
 
 // Impor komponen Shadcn/ui
 import { Button } from '@/components/ui/button';
@@ -28,11 +28,26 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 
+// 1. Impor Supabase client-component helper
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+
 /**
  * Komponen Form untuk Upload Produk Baru
  * Hanya berisi UI dan logic preview gambar.
  */
 export default function ProductUploadForm() {
+    const router = useRouter();
+
+    // 2. Setup Supabase Client
+    // Ini adalah klien yang aman digunakan di browser/client-component
+    // Dia otomatis membaca sesi user yang sedang login
+    const supabase = createClientComponentClient();
+
+    // State untuk loading dan error
+    const [isLoading, setIsLoading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
     // State untuk menyimpan URL preview gambar
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -54,27 +69,83 @@ export default function ProductUploadForm() {
 
     // 2. LOGIC SUBMIT (DUMMY)
     // Fungsi ini berjalan saat tombol submit ditekan
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault(); // Mencegah halaman reload
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        setIsLoading(true);
+        setErrorMessage(null);
+        const form = e.currentTarget as HTMLFormElement; // pastikan ini form
 
-        // Mengambil data dari form
-        const formData = new FormData(e.currentTarget);
-        const data = {
-            nama_produk: formData.get('nama_produk'),
-            jenis_product: formData.get('jenis_product'),
-            stok: formData.get('stok'),
-            harga: formData.get('harga'),
-            deskripsi: formData.get('deskripsi'),
-            file: selectedFile, // File gambar yang akan di-upload
-        };
+        // --- A. Dapatkan User yang Sedang Login ---
+        const { data: { user } } = await supabase.auth.getUser();
 
-        console.log("Data Form (Frontend):", data);
-        alert("Form disubmit! Cek console log. Belum ada logic backend.");
+        if (!user) {
+            setErrorMessage("Anda harus login untuk menambah produk.");
+            setIsLoading(false);
+            return;
+        }
 
-        // --- DI SINI NANTI LOGIC ANDA ---
-        // 1. Upload 'selectedFile' ke Supabase Storage (misal: ke bucket 'product-images')
-        // 2. Dapatkan URL publik dari gambar yang baru di-upload
-        // 3. Simpan semua 'data' (termasuk URL gambar) ke tabel 'barangs' di Supabase DB
+        // --- B. Validasi Form (minimal file ada) ---
+        if (!selectedFile) {
+            setErrorMessage("Gambar produk wajib diisi.");
+            setIsLoading(false);
+            return;
+        }
+
+        const formData = new FormData(form);
+
+        try {
+            // --- C. Upload Gambar ke Supabase Storage ---
+            // Buat nama file yang unik (user-id/random-uuid.ext)
+            const fileExt = selectedFile.name.split('.').pop();
+            const filePath = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
+
+            const { error: storageError } = await supabase.storage
+                // GANTI 'product-images' dengan nama bucket Anda
+                .from('product-images')
+                .upload(filePath, selectedFile);
+
+            if (storageError) {
+                throw new Error(`Gagal upload gambar: ${storageError.message}`);
+            }
+
+            // --- D. Dapatkan URL Publik dari Gambar ---
+            const { data: urlData } = supabase.storage
+                .from('product-images')
+                .getPublicUrl(filePath);
+
+            const publicUrl = urlData.publicUrl;
+
+            // --- E. Siapkan Data untuk Database ---
+            const dataToInsert = {
+                user_id: user.id, // INI KUNCINYA! Menghubungkan produk ke user
+                nama_produk: formData.get('nama_produk') as string,
+                jenis_product: formData.get('jenis_product') as string,
+                stok: parseInt(formData.get('stok') as string || '0', 10),
+                harga: parseFloat(formData.get('harga') as string || '0'), // Dibuat float untuk desimal
+                deskripsi: formData.get('deskripsi') as string,
+                gambar: publicUrl, // Simpan URL publik ke database
+            };
+
+            // --- F. Masukkan Data ke Tabel 'products' ---
+            const { error: dbError } = await supabase
+                .from('products')
+                .insert(dataToInsert);
+
+            if (dbError) {
+                // Jika insert DB gagal, hapus gambar yang telanjur di-upload
+                await supabase.storage.from('product-images').remove([filePath]);
+                throw new Error(`Gagal simpan data: ${dbError.message}`);
+            }
+
+            // --- G. Sukses ---
+            alert("Produk berhasil ditambahkan!");
+        } catch (error) {
+            // Tangkap semua error (upload/insert)
+            console.error("Error submit produk:", error);
+            setErrorMessage((error as Error).message);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     // 3. RENDER UI (JSX)
@@ -98,6 +169,15 @@ export default function ProductUploadForm() {
                     </CardHeader>
 
                     <CardContent className="space-y-6">
+                        {/* --- Alert Error --- */}
+                        {errorMessage && (
+                            <Alert variant="destructive">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertTitle>Terjadi Kesalahan</AlertTitle>
+                                <AlertDescription>{errorMessage}</AlertDescription>
+                            </Alert>
+                        )}
+
                         {/* Layout Grid 2 Kolom untuk Desktop */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
@@ -211,9 +291,13 @@ export default function ProductUploadForm() {
                     </CardContent>
 
                     <CardFooter className="flex justify-end border-t pt-6">
-                        <Button type="submit" size="lg">
-                            <Upload className="mr-2 h-4 w-4" />
-                            Simpan Produk
+                        <Button type="submit" size="lg" disabled={isLoading}>
+                            {isLoading ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Upload className="mr-2 h-4 w-4" />
+                            )}
+                            {isLoading ? 'Menyimpan...' : 'Simpan Produk'}
                         </Button>
                     </CardFooter>
 
