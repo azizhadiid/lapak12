@@ -24,6 +24,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'; // Untuk gambar produk
 import Image from 'next/image'; // Menggunakan Next.js Image component
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { useRouter } from 'next/navigation';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 
 // --- 2. DEFINISI TIPE & STATE ---
 
@@ -53,6 +55,8 @@ const formatRupiah = (amount: number) => {
  * Komponen Tabel Produk (Sekarang dengan data dari Supabase)
  */
 export default function EditProductTable() {
+    // Untuk Routeing
+    const router = useRouter();
     // State untuk menyimpan data produk dari Supabase
     const [products, setProducts] = useState<Product[]>([]);
     // State untuk loading
@@ -62,6 +66,10 @@ export default function EditProductTable() {
 
     // Inisialisasi Supabase client
     const supabase = createClientComponentClient();
+
+    // --- STATE BARU UNTUK DELETE ---
+    const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false); // Loading khusus delete
 
     // --- 3. LOGIKA FETCH DATA (READ) ---
     useEffect(() => {
@@ -109,17 +117,90 @@ export default function EditProductTable() {
         fetchProducts();
     }, [supabase]); // Dependensi array
 
+    // --- LOGIKA BARU: Handle Konfirmasi Delete ---
+    const handleConfirmDelete = async () => {
+        if (!productToDelete) return; // Pastikan ada produk yang dipilih
+
+        setIsDeleting(true);
+        setErrorMessage(null);
+
+        try {
+            // --- Langkah A: Hapus data dari tabel 'products' ---
+            const { error: dbError } = await supabase
+                .from('products')
+                .delete()
+                .eq('id', productToDelete.id);
+
+            if (dbError) {
+                throw new Error(`Gagal hapus data: ${dbError.message}`);
+            }
+
+            // --- Langkah B: Hapus file dari 'Storage' (jika ada) ---
+            // Ini adalah "best-effort", jika gagal, setidaknya data DB sudah terhapus
+            if (productToDelete.gambar) {
+                // Ekstrak file path dari URL
+                // URL: https://.../storage/v1/object/public/product-images/FILE_PATH
+                const filePath = productToDelete.gambar.split('product-images/')[1];
+
+                const { error: storageError } = await supabase.storage
+                    .from('product-images')
+                    .remove([filePath]);
+
+                if (storageError) {
+                    // Jangan lempar error, cukup catat di console
+                    console.warn(`Gagal hapus file storage: ${storageError.message}`);
+                }
+            }
+
+            // --- Langkah C: Update UI (State) ---
+            // Hapus produk dari state 'products' agar UI ter-update
+            setProducts(products.filter(p => p.id !== productToDelete.id));
+
+        } catch (error) {
+            console.error("Error Hapus Produk:", (error as Error).message);
+            setErrorMessage((error as Error).message);
+        } finally {
+            setIsDeleting(false); // Selesai loading
+            setProductToDelete(null); // Tutup modal
+        }
+    };
+
     // --- 4. LOGIC DUMMY UNTUK TOMBOL (Tetap sama) ---
     const handleEdit = (productId: string) => {
         console.log(`(DUMMY) Edit produk dengan ID: ${productId}`);
     };
 
-    const handleDelete = (productId: string) => {
-        console.log(`(DUMMY) Hapus produk dengan ID: ${productId}`);
-    };
-
     return (
         <div className="p-4 md:p-8">
+            {/* AlertDialog ditaruh di luar tabel.
+              Dia "invisible" sampai state 'productToDelete' terisi.
+            */}
+            <AlertDialog open={!!productToDelete} onOpenChange={(isOpen) => !isOpen && setProductToDelete(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Anda yakin ingin menghapus?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Tindakan ini tidak bisa dibatalkan. Ini akan menghapus produk
+                            <strong className='mx-1'>"{productToDelete?.nama_produk}"</strong>
+                            secara permanen.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setProductToDelete(null)}>Batal</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleConfirmDelete}
+                            disabled={isDeleting}
+                            className="bg-red-600 hover:bg-red-700"
+                        >
+                            {isDeleting ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : null}
+                            {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             <Card className="w-full mx-auto shadow-lg">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
                     {/* ... (Header tetap sama) ... */}
@@ -132,7 +213,7 @@ export default function EditProductTable() {
                             <CardDescription>Kelola semua produk yang Anda jual di sini.</CardDescription>
                         </div>
                     </div>
-                    <Button onClick={() => console.log('Tambah Produk')}>
+                    <Button onClick={() => router.push('/penjual/products/tambah')}>
                         Tambah Produk Baru
                     </Button>
                 </CardHeader>
@@ -223,8 +304,8 @@ export default function EditProductTable() {
                                                     <Button
                                                         variant="destructive"
                                                         size="icon"
-                                                        onClick={() => handleDelete(product.id)}
-                                                        aria-label={`Hapus ${product.nama_produk}`}
+                                                        onClick={() => setProductToDelete(product)} // <-- UBAH DI SINI
+                                                        disabled={isDeleting} // Disable jika ada proses delete
                                                     >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
