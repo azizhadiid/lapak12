@@ -4,6 +4,7 @@
 // 1. Impor hooks React dan client Supabase
 import React, { useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useRouter } from 'next/navigation';
 
 // Impor ikon dari lucide-react
 import { Edit, Trash2, Package, Search, AlertCircle, Loader2 } from 'lucide-react';
@@ -24,7 +25,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'; // Untuk gambar produk
 import Image from 'next/image'; // Menggunakan Next.js Image component
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
-import { useRouter } from 'next/navigation';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 
 // --- 2. DEFINISI TIPE & STATE ---
@@ -167,7 +167,7 @@ export default function EditProductTable() {
 
     // --- 4. LOGIC DUMMY UNTUK TOMBOL (Tetap sama) ---
     const handleEdit = (productId: string) => {
-        console.log(`(DUMMY) Edit produk dengan ID: ${productId}`);
+        router.push(`/penjual/products/edit/${productId}`);
     };
 
     return (
