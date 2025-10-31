@@ -55,7 +55,7 @@ export async function middleware(req: NextRequest) {
     // Aturan untuk ADMIN
     if (role === 'admin') {
         // Admin TIDAK BOLEH akses halaman penjual atau pembeli
-        if (pathname.startsWith('/penjual') || pathname.startsWith('/home')) {
+        if (pathname.startsWith('/penjual') || pathname.startsWith('/home') || pathname.startsWith('/profile')) {
             return NextResponse.redirect(new URL(homePath, req.url));
         }
     }
@@ -63,7 +63,7 @@ export async function middleware(req: NextRequest) {
     // Aturan untuk PENJUAL
     else if (role === 'penjual') {
         // Penjual TIDAK BOLEH akses halaman admin atau pembeli
-        if (pathname.startsWith('/admin') || pathname.startsWith('/home')) {
+        if (pathname.startsWith('/admin') || pathname.startsWith('/home') || pathname.startsWith('/profile')) {
             return NextResponse.redirect(new URL(homePath, req.url));
         }
     }
