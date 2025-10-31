@@ -143,7 +143,7 @@ export default function FormProfilePenjual() {
                 const filePath = `${user.id}.${fileExt}`;
 
                 const { error: uploadError } = await supabase.storage
-                    .from('profile-fotos')
+                    .from('profile-foto-penjual')
                     .upload(filePath, selectedFile, { upsert: true });
 
                 if (uploadError) {
@@ -151,7 +151,7 @@ export default function FormProfilePenjual() {
                 }
 
                 const { data: urlData } = supabase.storage
-                    .from('profile-fotos')
+                    .from('profile-foto-penjual')
                     .getPublicUrl(filePath);
 
                 dataToUpsert.foto_url = `${urlData.publicUrl}?t=${new Date().getTime()}`;
