@@ -1,4 +1,4 @@
-import ProductUploadForm from '@/components/penjual/TambahProductPage';
+import ProductUploadForm from '@/components/penjual/pages/TambahProductPage';
 import type { Metadata } from 'next';
 
 // 'metadata' sekarang berada di Server Component, ini sudah benar.

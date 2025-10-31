@@ -1,4 +1,4 @@
-import EditProductTable from '@/components/penjual/EditProductPage';
+import EditProductTable from '@/components/penjual/pages/EditProductPage';
 import type { Metadata } from 'next';
 
 // 'metadata' sekarang berada di Server Component, ini sudah benar.
