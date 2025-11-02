@@ -1,12 +1,11 @@
 "use client"
 
 import React, { useState } from "react";
-import { ArrowRight, Eye, EyeOff, Lock, Mail, User } from "lucide-react";
+import { ArrowRight, Mail } from "lucide-react";
 import MainLayoutAuth from "../MainLayoutAuth";
 import SectionIlustrationAuth from "../components/SectionIlustration";
 
-export default function LoginPageComponent() {
-    const [showPassword, setShowPassword] = useState(false);
+export default function ForgotPageComponent() {
     const [formData, setFormData] = useState({
         email: '',
         password: '',
@@ -39,10 +38,10 @@ export default function LoginPageComponent() {
                         {/* Meniru CardHeader */}
                         <div className="flex flex-col space-y-1.5 p-6 sm:p-8">
                             <h3 className="text-2xl sm:text-3xl font-semibold leading-none tracking-tight text-gray-900">
-                                Masuk Akun
+                                Lupa Password Akun
                             </h3>
                             <p className="text-sm text-gray-600">
-                                Masukkan data diri Anda untuk mulai berbelanja.
+                                Masukkan Email Anda untuk reset password.
                             </p>
                         </div>
 
@@ -70,60 +69,6 @@ export default function LoginPageComponent() {
                                 </div>
                             </div>
 
-                            {/* Password */}
-                            <div className="space-y-2">
-                                <label
-                                    htmlFor="password"
-                                    className="text-sm font-medium leading-none"
-                                >
-                                    Password
-                                </label>
-                                <div className="relative">
-                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500" />
-                                    <input
-                                        type={showPassword ? 'text' : 'password'}
-                                        id="password"
-                                        name="password"
-                                        value={formData.password}
-                                        onChange={handleChange}
-                                        placeholder="Masukkan password"
-                                        className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 pl-10 pr-10"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
-                                        aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
-                                    >
-                                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Ingatkan Saya & Lupa Password */}
-                            <div className="flex items-center justify-between mb-8 mt-8">
-                                <div className="flex items-center space-x-2">
-                                    <input
-                                        type="checkbox"
-                                        id="remember-me"
-                                        // Menggunakan rounded-full untuk membuatnya "bulat"
-                                        className="h-4 w-4 rounded-full border-gray-300 text-blue-600 focus:ring-blue-600 cursor-pointer"
-                                    />
-                                    <label
-                                        htmlFor="remember-me"
-                                        className="text-sm font-medium text-gray-700 cursor-pointer select-none"
-                                    >
-                                        Ingatkan Saya
-                                    </label>
-                                </div>
-                                <a
-                                    href="/forgot-password"
-                                    className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline"
-                                >
-                                    Lupa Password?
-                                </a>
-                            </div>
-
                             {/* Tombol Submit (Gaya Asli + Fokus shadcn) */}
                             <button
                                 type="submit"
@@ -131,14 +76,20 @@ export default function LoginPageComponent() {
                             >
                                 <div className="absolute inset-0 bg-gradient-to-r from-blue-700 to-blue-800 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                 <span className="relative flex items-center justify-center gap-2">
-                                    Login
+                                    Kirim Email
                                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                 </span>
                             </button>
                         </form>
 
                         {/* Meniru CardFooter */}
-                        <div className="flex items-center justify-center p-6 sm:p-8 pt-0 lg:-mt-10">
+                        <div className="flex flex-col items-center justify-center space-y-2 p-6 sm:p-8 pt-0 lg:-mt-10">
+                            <p className="text-sm text-gray-600">
+                                Sudah punya akun?{' '}
+                                <a href="/login" className="text-blue-600 font-semibold hover:text-blue-700 transition-colors hover:underline">
+                                    Masuk sekarang
+                                </a>
+                            </p>
                             <p className="text-sm text-gray-600">
                                 Belum punya akun?{' '}
                                 <a href="/register" className="text-blue-600 font-semibold hover:text-blue-700 transition-colors hover:underline">

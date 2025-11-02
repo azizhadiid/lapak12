@@ -173,7 +173,7 @@ export default function RegisterPageComponent() {
                         <div className="flex items-center justify-center p-6 sm:p-8 pt-0 lg:-mt-10">
                             <p className="text-sm text-gray-600">
                                 Sudah punya akun?{' '}
-                                <a href="/auth/login" className="text-blue-600 font-semibold hover:text-blue-700 transition-colors hover:underline">
+                                <a href="/login" className="text-blue-600 font-semibold hover:text-blue-700 transition-colors hover:underline">
                                     Masuk sekarang
                                 </a>
                             </p>
