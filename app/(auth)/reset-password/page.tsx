@@ -1,4 +1,4 @@
-import ResetPasswordPageComponent from "@/components/auth/register/ResetPasswordPageComponent";
+import ResetPasswordPageComponent from "@/components/auth/pages/ResetPasswordPageComponent";
 import type { Metadata } from 'next';
 
 // 'metadata' sekarang berada di Server Component, ini sudah benar.

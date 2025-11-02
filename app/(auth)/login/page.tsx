@@ -1,4 +1,4 @@
-import LoginPageComponent from "@/components/auth/register/LoginPageComponent";
+import LoginPageComponent from "@/components/auth/pages/LoginPageComponent";
 import type { Metadata } from 'next';
 
 // 'metadata' sekarang berada di Server Component, ini sudah benar.

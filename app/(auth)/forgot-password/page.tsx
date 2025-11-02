@@ -1,4 +1,4 @@
-import ForgotPageComponent from "@/components/auth/register/ForgotPasswordPageComponent";
+import ForgotPageComponent from "@/components/auth/pages/ForgotPasswordPageComponent";
 import type { Metadata } from 'next';
 
 // 'metadata' sekarang berada di Server Component, ini sudah benar.
