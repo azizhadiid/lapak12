@@ -6,7 +6,7 @@ export const metadata: Metadata = {
     title: 'Lupa Password', // Ini akan mengisi placeholder %s
 };
 
-export default function LoginPage() {
+export default function ForgotPage() {
     return (
         <ForgotPageComponent />
     );
