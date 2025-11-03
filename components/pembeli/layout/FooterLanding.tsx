@@ -1,4 +1,4 @@
-import { ShoppingCart } from "lucide-react";
+import Link from "next/link";
 import { BsInstagram } from "react-icons/bs";
 import { FaFacebook } from "react-icons/fa";
 import { FiTwitter } from "react-icons/fi";
@@ -11,14 +11,24 @@ export default function FooterLandingPage() {
                     <div className="grid grid-cols-2 gap-8 md:grid-cols-5">
                         {/* Kolom 1: Logo & Sosial Media */}
                         <div className="col-span-2 md:col-span-2">
-                            <a href="#" className="flex items-center gap-2">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
-                                    <ShoppingCart className="h-5 w-5" />
+                            <Link href="/" className="flex flex-shrink-0 items-center gap-2">
+                                {/* Ganti <a> dengan <Link> untuk navigasi Next.js */}
+                                <div className="flex items-center justify-center rounded-lg">
+                                    <img
+                                        src="/logo.png"
+                                        alt="Lapak12 Logo"
+                                        className="h-11 w-auto"
+                                        onError={(e) => {
+                                            const target = e.currentTarget as HTMLImageElement;
+                                            target.src =
+                                                "https://placehold.co/100x44/cccccc/333333?text=Logo&font=sans";
+                                            target.alt = "Gagal memuat logo";
+                                        }}
+                                    />
                                 </div>
-                                <span className="text-xl font-bold text-gray-900">Lapak12</span>
-                            </a>
+                            </Link>
                             <p className="mt-4 text-sm text-gray-600">
-                                Platform grosir B2B untuk warung dan toko kelontong.
+                                Platform e-commarce RT 12.
                             </p>
                             <div className="mt-6 flex gap-4">
                                 <a href="#" aria-label="Instagram">
