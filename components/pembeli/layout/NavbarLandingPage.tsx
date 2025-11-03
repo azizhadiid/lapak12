@@ -1,5 +1,5 @@
 import Link from "next/link"; // 1. Impor Link untuk navigasi
-import { buttonVariants } from "@/components/ui/button"; // 2. Impor buttonVariants
+import { Button, buttonVariants } from "@/components/ui/button"; // 2. Impor buttonVariants
 import { User } from "lucide-react";
 import { cn } from "@/lib/utils"; // (Asumsi Anda punya utility `cn` dari shadcn)
 
@@ -38,12 +38,13 @@ export default function AppHeader() {
                         >
                             Masuk
                         </Link>
-                        <Link
-                            href="/register"
-                            className={buttonVariants({ variant: "default" })}
-                        >
-                            Buat Akun
-                        </Link>
+                        <Button className="bg-blue-600" asChild>
+                            <Link
+                                href="/register"
+                            >
+                                Buat Akun
+                            </Link>
+                        </Button>
                     </div>
 
                     {/* Tombol Auth & Menu Mobile (Tampil di bawah 'lg') */}

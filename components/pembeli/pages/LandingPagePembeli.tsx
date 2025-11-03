@@ -62,7 +62,7 @@ function ProductCard({ product }: { product: typeof mockProducts[0] }) {
                 <h3 className="text-base font-semibold text-gray-900 truncate">{product.name}</h3>
                 <p className="mt-1 text-lg font-bold text-blue-600">{product.price}</p>
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                    <Button size="sm" className="w-full">Beli</Button>
+                    <Button size="sm" className="w-full bg-blue-600">Beli</Button>
                     <Button size="sm" variant="outline" className="w-full">Keranjang</Button>
                 </div>
             </div>
@@ -88,23 +88,23 @@ export default function LandingPagePembeli() {
             <section className="bg-white">
                 <div className="container mx-auto grid max-w-7xl grid-cols-1 gap-8 px-4 py-16 sm:px-6 md:grid-cols-2 lg:px-8 lg:py-24">
                     <div className="flex flex-col justify-center">
-                        <Badge variant="outline" className="w-fit">E-Commerce untuk Warung</Badge>
+                        <Badge variant="outline" className="w-fit">E-Commerce untuk RT 12</Badge>
                         <h1 className="mt-4 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
                             Belanja Grosir <br />
                             <span className="text-blue-600">Mudah & Cepat</span>
                         </h1>
                         <p className="mt-6 text-lg text-gray-600">
-                            Platform B2B untuk warung Anda. Dapatkan harga grosir terbaik
+                            Platform bisnis Anda. Dapatkan harga grosir terbaik
                             dengan pengiriman cepat dan terpercaya.
                         </p>
                         <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-                            <Button size="lg">Mulai Belanja</Button>
+                            <Button size="lg" className='bg-blue-600'>Mulai Belanja</Button>
                             <Button size="lg" variant="secondary">Daftar Jadi Seller</Button>
                         </div>
                     </div>
                     <div className="hidden items-center justify-center md:flex">
                         <img
-                            src="https://placehold.co/600x500/E0F2FE/0284C7?text=Ilustrasi+Warung+Modern&font=sans"
+                            src="/ilustrasi/shope.png"
                             alt="Ilustrasi Warung Modern"
                             className="rounded-3xl shadow-xl"
                         />
@@ -229,7 +229,7 @@ export default function LandingPagePembeli() {
                             className="h-11 flex-1 text-base"
                             aria-label="Email untuk newsletter"
                         />
-                        <Button type="submit" size="lg">Berlangganan</Button>
+                        <Button type="submit" size="lg" className='bg-blue-600'>Berlangganan</Button>
                     </form>
                 </div>
             </section>
