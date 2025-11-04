@@ -38,7 +38,7 @@ export default function AppHeader() {
                         >
                             Masuk
                         </Link>
-                        <Button className="bg-blue-600" asChild>
+                        <Button className='bg-blue-600 hover:bg-blue-700' asChild>
                             <Link
                                 href="/register"
                             >

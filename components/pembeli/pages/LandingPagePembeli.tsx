@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import MainLayoutLanding from '../layout/MainLayoutLanding';
+import Link from 'next/link';
 
 
 // Data Mockup
@@ -98,8 +99,17 @@ export default function LandingPagePembeli() {
                             dengan pengiriman cepat dan terpercaya.
                         </p>
                         <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-                            <Button size="lg" className='bg-blue-600'>Mulai Belanja</Button>
-                            <Button size="lg" variant="secondary">Daftar Jadi Seller</Button>
+                            <Button size="lg" className='bg-blue-600 hover:bg-blue-700' asChild>
+                                <Link href="/login">Mulai Belanja</Link>
+                            </Button>
+                            <Button
+                                size="lg"
+                                variant="secondary"
+                                className="hover:bg-blue-600 hover:text-white"
+                                asChild
+                            >
+                                <Link href='/register'>Daftar Jadi Seller</Link>
+                            </Button>
                         </div>
                     </div>
                     <div className="hidden items-center justify-center md:flex">

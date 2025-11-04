@@ -1,9 +1,18 @@
 "use client"
 
 import React, { useState } from "react";
-import { ArrowRight, Eye, EyeOff, Lock, Mail, User } from "lucide-react";
+import Link from "next/link"; // <-- Impor Link
+import { useRouter } from "next/navigation"; // <-- Impor useRouter
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"; // <-- Impor Supabase
+import Swal from 'sweetalert2'; // <-- Impor SweetAlert2
+import { ArrowRight, Eye, EyeOff, Lock, Mail, Loader2 } from "lucide-react";
 import MainLayoutAuth from "../MainLayoutAuth";
 import SectionIlustrationAuth from "../components/SectionIlustration";
+
+type FormErrors = {
+    email?: string;
+    password?: string;
+};
 
 export default function LoginPageComponent() {
     const [showPassword, setShowPassword] = useState(false);
@@ -12,18 +21,143 @@ export default function LoginPageComponent() {
         password: '',
     });
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        // Logika untuk submit form
-        console.log('Form submitted:', formData);
+    // --- Logika yang Dimigrasi dari LoginForm ---
+    const router = useRouter();
+    const [isLoading, setIsLoading] = useState(false);
+    const [errors, setErrors] = useState<FormErrors>({});
+    const supabase = createClientComponentClient();
+
+    // Fungsi validasi
+    const validateForm = () => {
+        const newErrors: FormErrors = {};
+
+        if (!formData.email.trim()) {
+            newErrors.email = 'Email wajib diisi';
+        } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+            newErrors.email = 'Format email tidak valid';
+        }
+
+        if (!formData.password) {
+            newErrors.password = 'Password wajib diisi';
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
     };
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    // Handle perubahan input sekaligus hapus error
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
         setFormData(prev => ({
             ...prev,
-            [e.target.name]: e.target.value
+            [name]: value
         }));
+        // Hapus error saat pengguna mengetik
+        if (errors[name as keyof FormErrors]) {
+            setErrors(prev => ({
+                ...prev,
+                [name]: undefined
+            }));
+        }
     };
+
+    // Handle submit form
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        // Validasi form
+        if (!validateForm()) {
+            // Ambil error pertama untuk ditampilkan
+            const firstError = Object.values(errors).find(err => err);
+            Swal.fire({
+                title: 'Validasi Gagal',
+                text: firstError || 'Mohon periksa kembali data Anda.',
+                icon: 'warning',
+                confirmButtonColor: '#3B82F6', // Warna biru
+            });
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            // 1. Proses login
+            const { error } = await supabase.auth.signInWithPassword({
+                email: formData.email,
+                password: formData.password,
+            });
+
+            if (error) {
+                Swal.fire({
+                    title: 'Gagal Masuk',
+                    text: "Email atau password salah. Silakan coba lagi.",
+                    icon: 'error',
+                    confirmButtonColor: '#3B82F6',
+                });
+                setIsLoading(false);
+                return;
+            }
+
+            // 2. Ambil data user yang baru login
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                throw new Error("Gagal mendapatkan sesi user setelah login.");
+            }
+
+            // 3. Ambil role dari tabel 'users' menggunakan ID
+            const { data: dbUser, error: dbError } = await supabase
+                .from('users')
+                .select('role')
+                .eq('id', user.id) // <-- LEBIH AMAN pakai user.id
+                .single();
+
+            if (dbError) {
+                console.error("Gagal mengambil role dari database:", dbError);
+                Swal.fire({
+                    title: 'Error',
+                    text: "Gagal memverifikasi role pengguna. Coba lagi.",
+                    icon: 'error',
+                    confirmButtonColor: '#3B82F6',
+                });
+                setIsLoading(false);
+                return;
+            }
+
+            const role = dbUser?.role;
+
+            // 4. Tampilkan notifikasi sukses
+            await Swal.fire({
+                title: 'Login Berhasil!',
+                text: 'Selamat datang kembali.',
+                icon: 'success',
+                timer: 1500, // Tutup otomatis setelah 1.5 detik
+                showConfirmButton: false,
+            });
+
+            // 5. Redirect sesuai role
+            if (role === 'admin') {
+                router.push('/admin/dashboard');
+            } else if (role === 'penjual') {
+                router.push('/penjual/home');
+            } else {
+                router.push('/home'); // Default untuk 'pembeli'
+            }
+
+            router.refresh();
+
+        } catch (err) {
+            console.error("Error during login:", err);
+            Swal.fire({
+                title: 'Terjadi Kesalahan',
+                text: "Terjadi kesalahan pada sistem. Coba lagi nanti.",
+                icon: 'error',
+                confirmButtonColor: '#3B82F6',
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    // --- Akhir dari logika yang dimigrasi ---
 
     return (
         <MainLayoutAuth>
@@ -65,9 +199,14 @@ export default function LoginPageComponent() {
                                         value={formData.email}
                                         onChange={handleChange}
                                         placeholder="Masukkan email"
-                                        className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 pl-10"
+                                        // Tambahkan style error
+                                        className={`flex h-10 w-full rounded-md border ${errors.email ? 'border-red-500' : 'border-gray-200'} bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 pl-10`}
                                     />
                                 </div>
+                                {/* Tampilkan pesan error inline */}
+                                {errors.email && (
+                                    <p className="text-xs text-red-600 mt-1">{errors.email}</p>
+                                )}
                             </div>
 
                             {/* Password */}
@@ -87,7 +226,8 @@ export default function LoginPageComponent() {
                                         value={formData.password}
                                         onChange={handleChange}
                                         placeholder="Masukkan password"
-                                        className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 pl-10 pr-10"
+                                        // Tambahkan style error
+                                        className={`flex h-10 w-full rounded-md border ${errors.password ? 'border-red-500' : 'border-gray-200'} bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 pl-10 pr-10`}
                                     />
                                     <button
                                         type="button"
@@ -98,6 +238,10 @@ export default function LoginPageComponent() {
                                         {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                     </button>
                                 </div>
+                                {/* Tampilkan pesan error inline */}
+                                {errors.password && (
+                                    <p className="text-xs text-red-600 mt-1">{errors.password}</p>
+                                )}
                             </div>
 
                             {/* Ingatkan Saya & Lupa Password */}
@@ -116,23 +260,33 @@ export default function LoginPageComponent() {
                                         Ingatkan Saya
                                     </label>
                                 </div>
-                                <a
+                                <Link
                                     href="/forgot-password"
                                     className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline"
                                 >
                                     Lupa Password?
-                                </a>
+                                </Link>
                             </div>
 
                             {/* Tombol Submit (Gaya Asli + Fokus shadcn) */}
                             <button
                                 type="submit"
-                                className="group relative w-full inline-flex items-center justify-center bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl font-semibold shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 transition-all hover:scale-[1.02] active:scale-[0.98] overflow-hidden text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                                className="group relative w-full inline-flex items-center justify-center bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl font-semibold shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 transition-all hover:scale-[1.02] active:scale-[0.98] overflow-hidden text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:opacity-75 disabled:cursor-not-allowed"
+                                disabled={isLoading}
                             >
                                 <div className="absolute inset-0 bg-gradient-to-r from-blue-700 to-blue-800 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                 <span className="relative flex items-center justify-center gap-2">
-                                    Login
-                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                    {isLoading ? (
+                                        <>
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                            Memproses...
+                                        </>
+                                    ) : (
+                                        <>
+                                            Login
+                                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                        </>
+                                    )}
                                 </span>
                             </button>
                         </form>
