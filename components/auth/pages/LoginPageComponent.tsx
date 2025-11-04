@@ -138,7 +138,7 @@ export default function LoginPageComponent() {
             if (role === 'admin') {
                 router.push('/admin/dashboard');
             } else if (role === 'penjual') {
-                router.push('/penjual/home');
+                router.push('/penjual/dashboard');
             } else {
                 router.push('/home'); // Default untuk 'pembeli'
             }

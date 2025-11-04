@@ -1,17 +1,13 @@
-import { FileText, LayoutDashboard, LogOut, Menu, Package, Store, User, X } from "lucide-react";
+"use client"
+
 import React, { useState } from "react";
+import { FileText, LayoutDashboard, LogOut, Menu, Package, Store, User, X } from "lucide-react";
 import Link from "next/link"; // <-- Impor Link
 import { usePathname } from "next/navigation"; // <-- Impor usePathname
 
 export default function NavbarPenjual() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const pathname = usePathname(); // <-- Hook untuk mendapatkan URL saat ini
-
-    // Logika logout (bisa Anda isi nanti)
-    const handleLogout = () => {
-        console.log("Logout diklik");
-        // Nanti tambahkan logika supabase.auth.signOut() di sini
-    };
 
     // Data navigasi diubah menggunakan href
     const navItems = [
@@ -26,12 +22,17 @@ export default function NavbarPenjual() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
                     <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-lg flex items-center justify-center shadow-lg">
-                            <Store className="w-6 h-6 text-white" />
-                        </div>
-                        <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                            Lapak 12
-                        </span>
+                        <img
+                            src="/logo.png"
+                            alt="Lapak12 Logo"
+                            className="w-auto h-11"
+                            onError={(e) => {
+                                // Menambahkan fallback jika gambar gagal dimuat
+                                const target = e.currentTarget as HTMLImageElement;
+                                target.src = 'https://placehold.co/44x44/cccccc/333333?text=Logo&font=sans';
+                                target.alt = 'Gagal memuat logo';
+                            }}
+                        />
                     </div>
 
                     {/* Desktop Navigation */}
@@ -56,13 +57,15 @@ export default function NavbarPenjual() {
                             );
                         })}
                         {/* Tombol Logout Terpisah */}
-                        <button
-                            onClick={handleLogout}
-                            className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 text-gray-600 hover:bg-red-50 hover:text-red-600"
-                        >
-                            <LogOut className="w-4 h-4" />
-                            <span className="font-medium">Logout</span>
-                        </button>
+                        <form action="/api/auth/signout" method="post">
+                            <button
+                                type="submit"
+                                className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 text-gray-600 hover:bg-red-50 hover:text-red-600"
+                            >
+                                <LogOut className="w-4 h-4" />
+                                <span className="font-medium">Logout</span>
+                            </button>
+                        </form>
                     </nav>
 
                     {/* Mobile Menu Button */}
@@ -96,13 +99,16 @@ export default function NavbarPenjual() {
                             );
                         })}
                         {/* Tombol Logout Terpisah (Mobile) */}
-                        <button
-                            onClick={handleLogout}
-                            className="flex items-center space-x-3 w-full px-4 py-3 rounded-lg transition-all text-gray-600 hover:bg-red-50 hover:text-red-600"
-                        >
-                            <LogOut className="w-5 h-5" />
-                            <span className="font-medium">Logout</span>
-                        </button>
+                        <form action="/api/auth/signout" method="post">
+                            <button
+                                type="submit"
+                                className="flex items-center space-x-3 w-full px-4 py-3 rounded-lg transition-all text-gray-600 hover:bg-red-50 hover:text-red-600"
+                            >
+                                <LogOut className="w-5 h-5" />
+                                <span className="font-medium">Logout</span>
+                            </button>
+                        </form>
+
                     </nav>
                 )}
             </div>
