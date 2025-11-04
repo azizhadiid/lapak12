@@ -1,15 +1,24 @@
 import { FileText, LayoutDashboard, LogOut, Menu, Package, Store, User, X } from "lucide-react";
 import React, { useState } from "react";
+import Link from "next/link"; // <-- Impor Link
+import { usePathname } from "next/navigation"; // <-- Impor usePathname
 
 export default function NavbarPenjual() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const pathname = usePathname(); // <-- Hook untuk mendapatkan URL saat ini
 
+    // Logika logout (bisa Anda isi nanti)
+    const handleLogout = () => {
+        console.log("Logout diklik");
+        // Nanti tambahkan logika supabase.auth.signOut() di sini
+    };
+
+    // Data navigasi diubah menggunakan href
     const navItems = [
-        { icon: LayoutDashboard, label: 'Dashboard', active: false },
-        { icon: Package, label: 'Product', active: false },
-        { icon: FileText, label: 'Pencatatan', active: false },
-        { icon: User, label: 'Profile', active: true },
-        { icon: LogOut, label: 'Logout', active: false }
+        { icon: LayoutDashboard, label: 'Dashboard', href: '/penjual/dashboard' },
+        { icon: Package, label: 'Product', href: '/penjual/product' },
+        { icon: FileText, label: 'Pencatatan', href: '/penjual/pencatatan' },
+        { icon: User, label: 'Profile', href: '/penjual/profile' },
     ];
 
     return (
@@ -26,19 +35,34 @@ export default function NavbarPenjual() {
                     </div>
 
                     {/* Desktop Navigation */}
-                    <nav className="hidden md:flex space-x-1">
-                        {navItems.map((item, idx) => (
-                            <button
-                                key={idx}
-                                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${item.active
-                                    ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md'
-                                    : 'text-gray-600 hover:bg-blue-50'
-                                    }`}
-                            >
-                                <item.icon className="w-4 h-4" />
-                                <span className="font-medium">{item.label}</span>
-                            </button>
-                        ))}
+                    <nav className="hidden md:flex space-x-1 items-center">
+                        {navItems.map((item) => {
+                            // Logika pengecekan aktif
+                            const isActive = pathname.startsWith(item.href);
+
+                            return (
+                                // Mengganti <button> dengan <Link>
+                                <Link
+                                    key={item.label}
+                                    href={item.href}
+                                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${isActive
+                                        ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md'
+                                        : 'text-gray-600 hover:bg-blue-50'
+                                        }`}
+                                >
+                                    <item.icon className="w-4 h-4" />
+                                    <span className="font-medium">{item.label}</span>
+                                </Link>
+                            );
+                        })}
+                        {/* Tombol Logout Terpisah */}
+                        <button
+                            onClick={handleLogout}
+                            className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 text-gray-600 hover:bg-red-50 hover:text-red-600"
+                        >
+                            <LogOut className="w-4 h-4" />
+                            <span className="font-medium">Logout</span>
+                        </button>
                     </nav>
 
                     {/* Mobile Menu Button */}
@@ -53,18 +77,32 @@ export default function NavbarPenjual() {
                 {/* Mobile Navigation */}
                 {isMobileMenuOpen && (
                     <nav className="md:hidden py-4 space-y-1 border-t border-blue-100">
-                        {navItems.map((item, idx) => (
-                            <button
-                                key={idx}
-                                className={`flex items-center space-x-3 w-full px-4 py-3 rounded-lg transition-all ${item.active
-                                    ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white'
-                                    : 'text-gray-600 hover:bg-blue-50'
-                                    }`}
-                            >
-                                <item.icon className="w-5 h-5" />
-                                <span className="font-medium">{item.label}</span>
-                            </button>
-                        ))}
+                        {navItems.map((item) => {
+                            const isActive = pathname.startsWith(item.href);
+                            return (
+                                <Link
+                                    key={item.label}
+                                    href={item.href}
+                                    // Menutup menu saat link diklik
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                    className={`flex items-center space-x-3 w-full px-4 py-3 rounded-lg transition-all ${isActive
+                                        ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white'
+                                        : 'text-gray-600 hover:bg-blue-50'
+                                        }`}
+                                >
+                                    <item.icon className="w-5 h-5" />
+                                    <span className="font-medium">{item.label}</span>
+                                </Link>
+                            );
+                        })}
+                        {/* Tombol Logout Terpisah (Mobile) */}
+                        <button
+                            onClick={handleLogout}
+                            className="flex items-center space-x-3 w-full px-4 py-3 rounded-lg transition-all text-gray-600 hover:bg-red-50 hover:text-red-600"
+                        >
+                            <LogOut className="w-5 h-5" />
+                            <span className="font-medium">Logout</span>
+                        </button>
                     </nav>
                 )}
             </div>
