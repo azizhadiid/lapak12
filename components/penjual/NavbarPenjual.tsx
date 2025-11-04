@@ -16,7 +16,7 @@ export default function NavbarPenjual() {
     // Data navigasi diubah menggunakan href
     const navItems = [
         { icon: LayoutDashboard, label: 'Dashboard', href: '/penjual/dashboard' },
-        { icon: Package, label: 'Product', href: '/penjual/product' },
+        { icon: Package, label: 'Product', href: '/penjual/products/edit' },
         { icon: FileText, label: 'Pencatatan', href: '/penjual/pencatatan' },
         { icon: User, label: 'Profile', href: '/penjual/profile' },
     ];
