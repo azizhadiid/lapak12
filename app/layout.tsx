@@ -14,6 +14,7 @@ export const metadata: Metadata = {
     template: '%s | Lapak12', // Template untuk halaman lain
   },
   description: 'Lapak12 - Platform Jual Beli Online Terpercaya',
+  icons: { icon: '/lapak12.svg' }
 };
 
 export default function RootLayout({
