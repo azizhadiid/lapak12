@@ -21,15 +21,23 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'; // Untuk gambar produk
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Alert, AlertDescription, AlertTitle } from '../../ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../ui/alert-dialog';
+import {
+    Pagination,
+    PaginationContent,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination"; // <-- BARU: Impor Pagination
 import MainLayoutPenjual from '../MainLayoutPenjual';
 
 // --- 2. DEFINISI TIPE & STATE ---
 
-// Buat Tipe data untuk produk, sesuaikan dengan skema Anda
+// Tipe data untuk produk
 type Product = {
     id: string;
     nama_produk: string;
@@ -51,278 +59,415 @@ const formatRupiah = (amount: number) => {
     }).format(amount);
 };
 
+// --- STATE BARU UNTUK PAGINATION & SEARCH ---
+const ITEMS_PER_PAGE = 5; // Tentukan berapa produk per halaman
+
 /**
  * Komponen Tabel Produk (Sekarang dengan data dari Supabase)
  */
 export default function EditProductTable() {
-    // Untuk Routeing
     const router = useRouter();
-    // State untuk menyimpan data produk dari Supabase
-    const [products, setProducts] = useState<Product[]>([]);
-    // State untuk loading
-    const [isLoading, setIsLoading] = useState(true);
-    // State untuk error
-    const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-    // Inisialisasi Supabase client
     const supabase = createClientComponentClient();
 
-    // --- STATE BARU UNTUK DELETE ---
-    const [productToDelete, setProductToDelete] = useState<Product | null>(null);
-    const [isDeleting, setIsDeleting] = useState(false); // Loading khusus delete
+    // State untuk data
+    const [products, setProducts] = useState<Product[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    // --- 3. LOGIKA FETCH DATA (READ) ---
+    // State untuk delete
+    const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    // --- STATE BARU ---
+    const [searchTerm, setSearchTerm] = useState(''); // State untuk input search
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(''); // State untuk search setelah debounce
+    const [currentPage, setCurrentPage] = useState(1); // State untuk halaman aktif
+    const [totalProducts, setTotalProducts] = useState(0); // State untuk total produk (untuk pagination)
+
+    // --- LOGIKA BARU: Debounce Search ---
+    // Ini mencegah Supabase di-query setiap kali user mengetik
     useEffect(() => {
-        // Buat fungsi async di dalam useEffect
+        const timer = setTimeout(() => {
+            setDebouncedSearchTerm(searchTerm);
+            setCurrentPage(1); // Reset ke halaman 1 setiap kali search baru
+        }, 500); // Tunggu 500ms setelah user berhenti mengetik
+
+        return () => {
+            clearTimeout(timer);
+        };
+    }, [searchTerm]);
+
+    // --- 3. LOGIKA FETCH DATA (READ) - Diperbarui ---
+    useEffect(() => {
         async function fetchProducts() {
             setIsLoading(true);
             setErrorMessage(null);
 
             try {
-                // 1. Ambil data user yang sedang login
+                // 1. Ambil data user
                 const { data: { user } } = await supabase.auth.getUser();
-
                 if (!user) {
                     throw new Error("User tidak ditemukan. Silakan login ulang.");
                 }
 
-                // 2. Ambil data dari tabel 'products'
-                const { data, error } = await supabase
-                    .from('products')    // Nama tabel Anda
-                    .select('*')         // Ambil semua kolom
-                    .eq('user_id', user.id) // Filter HANYA untuk user_id yang login
-                    .order('created_at', { ascending: false }); // Urutkan dari yang terbaru
+                // --- LOGIKA BARU: Pagination ---
+                const from = (currentPage - 1) * ITEMS_PER_PAGE;
+                const to = from + ITEMS_PER_PAGE - 1;
 
-                if (error) {
-                    // Jika ada error dari Supabase, lempar error
-                    throw error;
+                // --- LOGIKA BARU: Dynamic Query Builder ---
+                let dataQuery = supabase
+                    .from('products')
+                    .select('*')
+                    .eq('user_id', user.id);
+
+                let countQuery = supabase
+                    .from('products')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('user_id', user.id);
+
+                // Tambahkan filter search jika ada
+                if (debouncedSearchTerm) {
+                    dataQuery = dataQuery.ilike('nama_produk', `%${debouncedSearchTerm}%`);
+                    countQuery = countQuery.ilike('nama_produk', `%${debouncedSearchTerm}%`);
                 }
 
-                // 3. Sukses! Simpan data ke state
-                if (data) {
-                    setProducts(data);
-                }
+                // 2. Ambil data PRODUK (dengan range untuk pagination)
+                const { data, error } = await dataQuery
+                    .order('created_at', { ascending: false })
+                    .range(from, to);
+
+                if (error) throw error;
+
+                // 3. Ambil COUNT (total produk)
+                const { count, error: countError } = await countQuery;
+
+                if (countError) throw countError;
+
+                // 4. Sukses! Simpan data ke state
+                setProducts(data || []);
+                setTotalProducts(count || 0);
 
             } catch (error) {
-                // Tangkap semua error (termasuk error user)
                 console.error("Error mengambil produk:", (error as Error).message);
                 setErrorMessage((error as Error).message);
             } finally {
-                // Apapun hasilnya, loading selesai
                 setIsLoading(false);
             }
         }
 
-        // Panggil fungsi fetch data
         fetchProducts();
-    }, [supabase]); // Dependensi array
+    }, [supabase, currentPage, debouncedSearchTerm]); // <-- BARU: Re-fetch saat halaman atau search berubah
 
-    // --- LOGIKA BARU: Handle Konfirmasi Delete ---
+    // --- 4. LOGIKA DELETE (Tetap sama) ---
     const handleConfirmDelete = async () => {
-        if (!productToDelete) return; // Pastikan ada produk yang dipilih
-
+        if (!productToDelete) return;
         setIsDeleting(true);
         setErrorMessage(null);
 
         try {
-            // --- Langkah A: Hapus data dari tabel 'products' ---
+            // Hapus data dari tabel
             const { error: dbError } = await supabase
                 .from('products')
                 .delete()
                 .eq('id', productToDelete.id);
+            if (dbError) throw new Error(`Gagal hapus data: ${dbError.message}`);
 
-            if (dbError) {
-                throw new Error(`Gagal hapus data: ${dbError.message}`);
-            }
-
-            // --- Langkah B: Hapus file dari 'Storage' (jika ada) ---
-            // Ini adalah "best-effort", jika gagal, setidaknya data DB sudah terhapus
+            // Hapus file dari Storage
             if (productToDelete.gambar) {
-                // Ekstrak file path dari URL
-                // URL: https://.../storage/v1/object/public/product-images/FILE_PATH
                 const filePath = productToDelete.gambar.split('product-images/')[1];
-
                 const { error: storageError } = await supabase.storage
                     .from('product-images')
                     .remove([filePath]);
-
                 if (storageError) {
-                    // Jangan lempar error, cukup catat di console
                     console.warn(`Gagal hapus file storage: ${storageError.message}`);
                 }
             }
 
-            // --- Langkah C: Update UI (State) ---
-            // Hapus produk dari state 'products' agar UI ter-update
+            // Update UI
             setProducts(products.filter(p => p.id !== productToDelete.id));
+            // Refresh data untuk pagination
+            setTotalProducts(prev => prev - 1);
+            // Cek jika halaman jadi kosong
+            if (products.length === 1 && currentPage > 1) {
+                setCurrentPage(currentPage - 1);
+            }
 
         } catch (error) {
             console.error("Error Hapus Produk:", (error as Error).message);
             setErrorMessage((error as Error).message);
         } finally {
-            setIsDeleting(false); // Selesai loading
-            setProductToDelete(null); // Tutup modal
+            setIsDeleting(false);
+            setProductToDelete(null);
         }
     };
 
-    // --- 4. LOGIC DUMMY UNTUK TOMBOL (Tetap sama) ---
+    // --- 5. LOGIKA NAVIGASI (Tetap sama) ---
     const handleEdit = (productId: string) => {
         router.push(`/penjual/products/${productId}`);
     };
 
+    // --- 6. LOGIKA BARU: Pagination Handler ---
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+    };
+
+    const totalPages = Math.ceil(totalProducts / ITEMS_PER_PAGE);
+    const from = (currentPage - 1) * ITEMS_PER_PAGE;
+
+    // --- 7. RENDER KOMPONEN ---
     return (
         <MainLayoutPenjual>
-            <div className="space-y-6">
-
-                <div className="p-4 md:p-8">
-                    {/* AlertDialog ditaruh di luar tabel.
-              Dia "invisible" sampai state 'productToDelete' terisi.
+            {/* PERBAIKAN #1: TINGGI LAYER
+                Kita buat div ini mengisi sisa ruang (flex-1) dan menjadi
+                flex container (flex-col) untuk Card di dalamnya.
+                (Asumsi MainLayoutPenjual adalah flex-col min-h-screen)
             */}
-                    <AlertDialog open={!!productToDelete} onOpenChange={(isOpen) => !isOpen && setProductToDelete(null)}>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Anda yakin ingin menghapus?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    Tindakan ini tidak bisa dibatalkan. Ini akan menghapus produk
-                                    <strong className='mx-1'>"{productToDelete?.nama_produk}"</strong>
-                                    secara permanen.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel onClick={() => setProductToDelete(null)}>Batal</AlertDialogCancel>
-                                <AlertDialogAction
-                                    onClick={handleConfirmDelete}
-                                    disabled={isDeleting}
-                                    className="bg-red-600 hover:bg-red-700"
-                                >
-                                    {isDeleting ? (
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    ) : null}
-                                    {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+            <div className="flex-1 flex flex-col p-4 md:p-8">
 
-                    <Card className="w-full mx-auto shadow-lg">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
-                            {/* ... (Header tetap sama) ... */}
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-purple-100 rounded-lg">
-                                    <Package className="w-6 h-6 text-purple-600" />
-                                </div>
-                                <div>
-                                    <CardTitle className="text-2xl font-bold">Daftar Produk Anda</CardTitle>
-                                    <CardDescription>Kelola semua produk yang Anda jual di sini.</CardDescription>
-                                </div>
+                {/* AlertDialog (tidak berubah, posisi sudah benar) */}
+                <AlertDialog open={!!productToDelete} onOpenChange={(isOpen) => !isOpen && setProductToDelete(null)}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Anda yakin ingin menghapus?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Tindakan ini tidak bisa dibatalkan. Ini akan menghapus produk
+                                <strong className='mx-1'>"{productToDelete?.nama_produk}"</strong>
+                                secara permanen.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel onClick={() => setProductToDelete(null)}>Batal</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={handleConfirmDelete}
+                                disabled={isDeleting}
+                                className="bg-red-600 hover:bg-red-700"
+                            >
+                                {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+
+                {/* PERBAIKAN #1: TINGGI LAYER
+                    Card kita buat 'flex-1' agar memanjang mengisi ruang 
+                    dan 'flex-col' agar bisa membagi Header, Content (scrollable), dan Footer.
+                    'overflow-hidden' penting agar Card tidak merusak layout.
+                */}
+                <Card className="w-full mx-auto shadow-lg flex-1 flex flex-col overflow-hidden">
+                    <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4 space-y-0 pb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-purple-100 rounded-lg">
+                                <Package className="w-6 h-6 text-purple-600" />
                             </div>
-                            <Button onClick={() => router.push('/penjual/products/tambah')} className='bg-blue-600 hover:bg-blue700'>
-                                Tambah Produk Baru
-                            </Button>
-                        </CardHeader>
-                        <CardContent>
-                            {/* Input Search */}
-                            <div className="relative mb-4">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                                <Input placeholder="Cari produk..." className="pl-9 pr-4" />
+                            <div>
+                                <CardTitle className="text-2xl font-bold">Daftar Produk Anda</CardTitle>
+                                <CardDescription>Kelola semua produk yang Anda jual di sini.</CardDescription>
                             </div>
+                        </div>
+                        <Button onClick={() => router.push('/penjual/products/tambah')} className='bg-blue-600 hover:bg-blue700'>
+                            Tambah Produk Baru
+                        </Button>
+                    </CardHeader>
 
-                            {/* Tampilkan Alert jika ada Error */}
-                            {errorMessage && (
-                                <Alert variant="destructive" className="mb-4">
-                                    <AlertCircle className="h-4 w-4" />
-                                    <AlertTitle>Gagal Memuat Data</AlertTitle>
-                                    <AlertDescription>{errorMessage}</AlertDescription>
-                                </Alert>
-                            )}
+                    {/* PERBAIKAN #1: TINGGI LAYER
+                        CardContent kita buat 'flex-1' dan 'overflow-hidden'
+                        untuk menampung area tabel yang bisa di-scroll.
+                    */}
+                    <CardContent className="flex-1 flex flex-col overflow-hidden">
+                        {/* Input Search (BARU: Terhubung dengan state) */}
+                        <div className="relative mb-4">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                            <Input
+                                placeholder="Cari produk..."
+                                className="pl-9 pr-4"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
 
-                            <div className="overflow-x-auto rounded-md border">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead className="w-[80px]">Gambar</TableHead>
-                                            <TableHead>Nama Produk</TableHead>
-                                            <TableHead>Jenis</TableHead>
-                                            <TableHead>Stok</TableHead>
-                                            <TableHead>Harga</TableHead>
-                                            <TableHead className="text-center w-[120px]">Aksi</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {/* --- 6. RENDER KONDISIONAL --- */}
-                                        {isLoading ? (
-                                            // Tampilkan Pemuatan (Loading)
+                        {/* Tampilkan Alert jika ada Error */}
+                        {errorMessage && (
+                            <Alert variant="destructive" className="mb-4">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertTitle>Gagal Memuat Data</AlertTitle>
+                                <AlertDescription>{errorMessage}</AlertDescription>
+                            </Alert>
+                        )}
+
+                        {/* PERBAIKAN #1 & #3: TINGGI & RESPONSIVE
+                            Container ini (flex-1 overflow-auto) akan mengisi sisa ruang
+                            dan menyediakan scrollbar HANYA untuk area ini.
+                        */}
+                        <div className="flex-1 overflow-auto">
+                            {/* PERBAIKAN #3: RESPONSIVE (Tampilan Desktop) */}
+                            {/* 'hidden md:block' -> Sembunyikan di mobile, tampilkan di desktop */}
+                            <div className="hidden md:block">
+                                <div className="overflow-x-auto rounded-md border">
+                                    <Table>
+                                        <TableHeader>
                                             <TableRow>
-                                                <TableCell colSpan={6} className="h-24 text-center">
-                                                    <Loader2 className="mx-auto h-6 w-6 animate-spin text-gray-400" />
-                                                    <p className="text-gray-500 mt-2">Memuat data produk...</p>
-                                                </TableCell>
+                                                <TableHead className="w-[80px]">Gambar</TableHead>
+                                                <TableHead>Nama Produk</TableHead>
+                                                {/* Sembunyikan di layar 'lg' ke bawah */}
+                                                <TableHead className="hidden lg:table-cell">Jenis</TableHead>
+                                                <TableHead>Stok</TableHead>
+                                                <TableHead>Harga</TableHead>
+                                                <TableHead className="text-center w-[120px]">Aksi</TableHead>
                                             </TableRow>
-                                        ) : !errorMessage && products.length === 0 ? (
-                                            // Tampilkan Jika Data Kosong
-                                            <TableRow>
-                                                <TableCell colSpan={6} className="h-24 text-center">
-                                                    <p className="text-gray-500">
-                                                        Anda belum memiliki produk. Silakan "Tambah Produk Baru".
-                                                    </p>
-                                                </TableCell>
-                                            </TableRow>
-                                        ) : (
-                                            // Tampilkan Data Produk (Ganti 'dummyProducts' menjadi 'products')
-                                            products.map((product) => (
-                                                <TableRow key={product.id}>
-                                                    <TableCell>
-                                                        <Avatar className="h-10 w-10">
-                                                            {/* Gunakan 'product.gambar' dari state */}
-                                                            <AvatarImage
-                                                                src={product.gambar || undefined}
-                                                                alt={product.nama_produk}
-                                                                style={{ objectFit: 'cover' }}
-                                                            />
-                                                            <AvatarFallback>P{product.nama_produk.charAt(0)}</AvatarFallback>
-                                                        </Avatar>
-                                                    </TableCell>
-                                                    <TableCell className="font-medium">{product.nama_produk}</TableCell>
-                                                    <TableCell>
-                                                        <Badge variant="secondary">{product.jenis_product || '-'}</Badge>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {(product.stok ?? 0) > 0 ? (
-                                                            <span className="text-green-600 font-medium">{product.stok}</span>
-                                                        ) : (
-                                                            <span className="text-red-600 font-medium">Habis</span>
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>{formatRupiah(product.harga || 0)}</TableCell>
-                                                    <TableCell className="text-center">
-                                                        <div className="flex items-center justify-center gap-2">
-                                                            <Button
-                                                                variant="outline"
-                                                                size="icon"
-                                                                onClick={() => handleEdit(product.id)}
-                                                                aria-label={`Edit ${product.nama_produk}`}
-                                                            >
-                                                                <Edit className="h-4 w-4" />
-                                                            </Button>
-                                                            <Button
-                                                                variant="destructive"
-                                                                size="icon"
-                                                                onClick={() => setProductToDelete(product)} // <-- UBAH DI SINI
-                                                                disabled={isDeleting} // Disable jika ada proses delete
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </div>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {isLoading ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={6} className="h-24 text-center">
+                                                        <Loader2 className="mx-auto h-6 w-6 animate-spin text-gray-400" />
+                                                        <p className="text-gray-500 mt-2">Memuat data produk...</p>
                                                     </TableCell>
                                                 </TableRow>
-                                            ))
-                                        )}
-                                    </TableBody>
-                                </Table>
+                                            ) : !errorMessage && products.length === 0 ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={6} className="h-24 text-center">
+                                                        <p className="text-gray-500">
+                                                            {/* Pesan dinamis berdasarkan search */}
+                                                            {debouncedSearchTerm
+                                                                ? "Tidak ada produk yang cocok dengan pencarian Anda."
+                                                                : 'Anda belum memiliki produk. Silakan "Tambah Produk Baru".'
+                                                            }
+                                                        </p>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ) : (
+                                                products.map((product) => (
+                                                    <TableRow key={product.id}>
+                                                        <TableCell>
+                                                            <Avatar className="h-10 w-10">
+                                                                <AvatarImage src={product.gambar || undefined} alt={product.nama_produk} style={{ objectFit: 'cover' }} />
+                                                                <AvatarFallback>P{product.nama_produk.charAt(0)}</AvatarFallback>
+                                                            </Avatar>
+                                                        </TableCell>
+                                                        <TableCell className="font-medium">{product.nama_produk}</TableCell>
+                                                        {/* Sembunyikan di layar 'lg' ke bawah */}
+                                                        <TableCell className="hidden lg:table-cell">
+                                                            <Badge variant="secondary">{product.jenis_product || '-'}</Badge>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {(product.stok ?? 0) > 0 ? (
+                                                                <span className="text-green-600 font-medium">{product.stok}</span>
+                                                            ) : (
+                                                                <span className="text-red-600 font-medium">Habis</span>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>{formatRupiah(product.harga || 0)}</TableCell>
+                                                        <TableCell className="text-center">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <Button variant="outline" size="icon" onClick={() => handleEdit(product.id)}>
+                                                                    <Edit className="h-4 w-4" />
+                                                                </Button>
+                                                                <Button variant="destructive" size="icon" onClick={() => setProductToDelete(product)} disabled={isDeleting}>
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </div>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </div>
                             </div>
-                        </CardContent>
-                    </Card>
-                </div>
+
+                            {/* PERBAIKAN #3: RESPONSIVE (Tampilan Mobile) */}
+                            {/* 'block md:hidden' -> Tampilkan HANYA di mobile */}
+                            <div className="block md:hidden space-y-4 p-1">
+                                {isLoading && products.length === 0 ? (
+                                    <div className="text-center p-10">
+                                        <Loader2 className="mx-auto h-6 w-6 animate-spin text-gray-400" />
+                                        <p className="text-gray-500 mt-2">Memuat data produk...</p>
+                                    </div>
+                                ) : !errorMessage && products.length === 0 ? (
+                                    <div className="text-center p-10">
+                                        <p className="text-gray-500">
+                                            {debouncedSearchTerm
+                                                ? "Tidak ada produk yang cocok."
+                                                : "Anda belum memiliki produk."
+                                            }
+                                        </p>
+                                    </div>
+                                ) : (
+                                    products.map((product) => (
+                                        <Card key={product.id} className="flex items-center p-4 gap-4">
+                                            <Avatar className="h-12 w-12 rounded-md">
+                                                <AvatarImage src={product.gambar || undefined} alt={product.nama_produk} style={{ objectFit: 'cover' }} className="rounded-md" />
+                                                <AvatarFallback className="rounded-md">P{product.nama_produk.charAt(0)}</AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex-1 space-y-1">
+                                                <h4 className="font-medium truncate">{product.nama_produk}</h4>
+                                                <p className="text-sm font-semibold text-gray-800">{formatRupiah(product.harga || 0)}</p>
+                                                <p className="text-sm text-muted-foreground">
+                                                    Stok: {(product.stok ?? 0) > 0 ? (
+                                                        <span className="text-green-600 font-medium">{product.stok}</span>
+                                                    ) : (
+                                                        <span className="text-red-600 font-medium">Habis</span>
+                                                    )}
+                                                </p>
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <Button variant="outline" size="icon" onClick={() => handleEdit(product.id)}>
+                                                    <Edit className="h-4 w-4" />
+                                                </Button>
+                                                <Button variant="destructive" size="icon" onClick={() => setProductToDelete(product)} disabled={isDeleting}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </Card>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </CardContent>
+
+                    {/* PERBAIKAN #2: PAGINATION
+                        Kita tambahkan CardFooter untuk menampung komponen Pagination.
+                        'border-t' memberikan garis pemisah yang rapi.
+                    */}
+                    <CardFooter className="pt-6 border-t flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="text-sm text-muted-foreground">
+                            Menampilkan
+                            <strong className="mx-1">{Math.min(from + 1, totalProducts)} - {Math.min(from + products.length, totalProducts)}</strong>
+                            dari
+                            <strong className="mx-1">{totalProducts}</strong>
+                            produk
+                        </div>
+                        <Pagination>
+                            <PaginationContent>
+                                <PaginationItem>
+                                    <PaginationPrevious
+                                        href="#"
+                                        onClick={(e) => { e.preventDefault(); if (currentPage > 1) handlePageChange(currentPage - 1); }}
+                                        aria-disabled={currentPage === 1}
+                                        className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                                    />
+                                </PaginationItem>
+
+                                {/* Info halaman sederhana */}
+                                <PaginationItem>
+                                    <span className="px-4 text-sm">
+                                        Halaman {currentPage} dari {totalPages}
+                                    </span>
+                                </PaginationItem>
+
+                                <PaginationItem>
+                                    <PaginationNext
+                                        href="#"
+                                        onClick={(e) => { e.preventDefault(); if (currentPage < totalPages) handlePageChange(currentPage + 1); }}
+                                        aria-disabled={currentPage === totalPages}
+                                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                                    />
+                                </PaginationItem>
+                            </PaginationContent>
+                        </Pagination>
+                    </CardFooter>
+                </Card>
             </div>
         </MainLayoutPenjual>
     );
