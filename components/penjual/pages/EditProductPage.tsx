@@ -167,7 +167,7 @@ export default function EditProductTable() {
 
     // --- 4. LOGIC DUMMY UNTUK TOMBOL (Tetap sama) ---
     const handleEdit = (productId: string) => {
-        router.push(`/penjual/products/edit/${productId}`);
+        router.push(`/penjual/products/${productId}`);
     };
 
     return (
