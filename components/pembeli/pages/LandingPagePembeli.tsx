@@ -108,7 +108,7 @@ export default function LandingPagePembeli() {
                                 className="hover:bg-blue-600 hover:text-white"
                                 asChild
                             >
-                                <Link href='/register'>Daftar Jadi Seller</Link>
+                                <Link href='/auth/penjual/register'>Daftar Jadi Seller</Link>
                             </Button>
                         </div>
                     </div>
