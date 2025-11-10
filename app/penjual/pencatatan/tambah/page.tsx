@@ -14,22 +14,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronLeft } from "lucide-react";
 import MainLayoutPenjual from "@/components/penjual/MainLayoutPenjual";
-
-// Tipe data (bisa juga diimpor dari file shared)
-interface PencatatanPenjualan {
-    id: string;
-    tanggal: string;
-    namaProduk: string;
-    kategori: string;
-    jumlah: number;
-    hargaSatuan: number;
-    totalHarga: number;
-    pembeli: string;
-    metodePembayaran: string;
-}
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { Penjualan } from "@/lib/types/pencatatan";
+import { toast } from "sonner";
 
 export default function TambahPencatatanPage() {
-    // const router = useRouter(); // <- Hapus router
+    const supabase = createClientComponentClient();
 
     // State khusus untuk form tambah ini
     const [formData, setFormData] = useState({
@@ -54,43 +44,49 @@ export default function TambahPencatatanPage() {
     };
 
     // Handle form submit (hanya untuk logic 'Tambah Baru')
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (isLoading) return;
         setIsLoading(true);
 
-        const newPencatatan: PencatatanPenjualan = {
-            id: Date.now().toString(), // ID unik sementara
-            tanggal: formData.tanggal,
-            namaProduk: formData.namaProduk,
-            kategori: formData.kategori,
-            jumlah: parseInt(formData.jumlah),
-            hargaSatuan: parseInt(formData.hargaSatuan),
-            totalHarga: parseInt(formData.jumlah) * parseInt(formData.hargaSatuan),
-            pembeli: formData.pembeli,
-            metodePembayaran: formData.metodePembayaran,
-        };
+        try {
+            // ✅ Dapatkan user login
+            const {
+                data: { user },
+                error: userError,
+            } = await supabase.auth.getUser();
 
-        // --- SIMULASI ---
-        // Di aplikasi nyata, Anda akan memanggil API untuk menyimpan data ke database.
-        // State 'pencatatan' ada di halaman sebelumnya, jadi kita tidak bisa
-        // langsung menambahkannya di sini. Halaman list idealnya akan
-        // mengambil data terbaru (re-fetch) saat dibuka.
+            if (userError || !user) {
+                throw new Error("Gagal mendapatkan user. Pastikan Anda sudah login.");
+            }
 
-        console.log("Data Baru Akan Disimpan:", newPencatatan);
+            const newPencatatan: Penjualan = {
+                user_id: user.id,
+                tanggal: formData.tanggal,
+                kategori: formData.kategori,
+                nama_produk: formData.namaProduk,
+                jumlah: parseInt(formData.jumlah),
+                harga_satuan: parseInt(formData.hargaSatuan),
+                total_harga: parseInt(formData.jumlah) * parseInt(formData.hargaSatuan),
+                nama_pembeli: formData.pembeli,
+                metode_pembayaran: formData.metodePembayaran,
+            };
 
-        // Simulasi waktu tunggu API
-        setTimeout(() => {
+            // ✅ Simpan ke tabel penjualan
+            const { error } = await supabase.from("penjualan").insert(newPencatatan);
+
+            if (error) throw error;
+
+            toast.success("Pencatatan berhasil disimpan!");
+            window.location.href = "/penjual/pencatatan";
+        } catch (err: any) {
+            console.error(err);
+            toast.error(`Gagal menyimpan data: ${err.message}`);
+        } finally {
             setIsLoading(false);
-            console.log("Data berhasil disimpan (simulasi)");
-
-            // Tampilkan notifikasi sukses (misalnya: 'toast') di sini jika ada
-
-            // Navigasi kembali ke halaman list
-            // router.push('/penjual/pencatatan'); // <- Ganti ini
-            window.location.href = '/penjual/pencatatan'; // <- Gunakan ini
-        }, 1000);
+        }
     };
+
 
     // Hitung total harga untuk ditampilkan
     const totalHarga = (formData.jumlah && formData.hargaSatuan)
