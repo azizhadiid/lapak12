@@ -80,16 +80,76 @@ const dummyData: PencatatanPenjualan[] = [
         pembeli: "Ibu Ani",
         metodePembayaran: "E-Wallet",
     },
+    {
+        id: "4",
+        tanggal: "2024-11-03",
+        namaProduk: "Tas Rajut",
+        kategori: "Kerajinan",
+        jumlah: 1,
+        hargaSatuan: 150000,
+        totalHarga: 150000,
+        pembeli: "Ibu Ani",
+        metodePembayaran: "E-Wallet",
+    },
+    {
+        id: "5",
+        tanggal: "2024-11-03",
+        namaProduk: "Tas Rajut",
+        kategori: "Kerajinan",
+        jumlah: 1,
+        hargaSatuan: 150000,
+        totalHarga: 150000,
+        pembeli: "Ibu Ani",
+        metodePembayaran: "E-Wallet",
+    },
+    {
+        id: "6",
+        tanggal: "2024-11-03",
+        namaProduk: "Tas Rajut",
+        kategori: "Kerajinan",
+        jumlah: 1,
+        hargaSatuan: 150000,
+        totalHarga: 150000,
+        pembeli: "Ibu Ani",
+        metodePembayaran: "E-Wallet",
+    },
+    {
+        id: "7",
+        tanggal: "2024-11-03",
+        namaProduk: "Tas Rajut",
+        kategori: "Kerajinan",
+        jumlah: 1,
+        hargaSatuan: 150000,
+        totalHarga: 150000,
+        pembeli: "Ibu Ani",
+        metodePembayaran: "E-Wallet",
+    },
+    {
+        id: "8",
+        tanggal: "2024-11-03",
+        namaProduk: "Tas Rajut",
+        kategori: "Kerajinan",
+        jumlah: 1,
+        hargaSatuan: 150000,
+        totalHarga: 150000,
+        pembeli: "Ibu Ani",
+        metodePembayaran: "E-Wallet",
+    },
 ];
 
 export default function PencatatanPageComponent() {
     const [pencatatan, setPencatatan] = useState<PencatatanPenjualan[]>(dummyData);
     const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
+
+    // State untuk form dialog (sekarang hanya untuk EDIT)
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
 
-    // Form state
+    // State untuk dialog konfirmasi Hapus
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
+
     const [formData, setFormData] = useState({
         tanggal: "",
         namaProduk: "",
@@ -100,7 +160,7 @@ export default function PencatatanPageComponent() {
         metodePembayaran: "",
     });
 
-    const itemsPerPage = 10;
+    const itemsPerPage = 5;
 
     // Filter data berdasarkan search query
     const filteredData = pencatatan.filter((item) =>
@@ -119,27 +179,25 @@ export default function PencatatanPageComponent() {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        const newPencatatan: PencatatanPenjualan = {
-            id: editingId || Date.now().toString(),
-            tanggal: formData.tanggal,
-            namaProduk: formData.namaProduk,
-            kategori: formData.kategori,
-            jumlah: parseInt(formData.jumlah),
-            hargaSatuan: parseInt(formData.hargaSatuan),
-            totalHarga: parseInt(formData.jumlah) * parseInt(formData.hargaSatuan),
-            pembeli: formData.pembeli,
-            metodePembayaran: formData.metodePembayaran,
-        };
-
         if (editingId) {
             // Update existing
+            const updatedPencatatan: PencatatanPenjualan = {
+                id: editingId,
+                tanggal: formData.tanggal,
+                namaProduk: formData.namaProduk,
+                kategori: formData.kategori,
+                jumlah: parseInt(formData.jumlah),
+                hargaSatuan: parseInt(formData.hargaSatuan),
+                totalHarga: parseInt(formData.jumlah) * parseInt(formData.hargaSatuan),
+                pembeli: formData.pembeli,
+                metodePembayaran: formData.metodePembayaran,
+            };
+
             setPencatatan(pencatatan.map(item =>
-                item.id === editingId ? newPencatatan : item
+                item.id === editingId ? updatedPencatatan : item
             ));
-        } else {
-            // Add new
-            setPencatatan([newPencatatan, ...pencatatan]);
         }
+        // Bagian 'else' (untuk tambah baru) telah dihapus dari sini
 
         // Reset form
         setFormData({
@@ -172,9 +230,17 @@ export default function PencatatanPageComponent() {
 
     // Handle delete
     const handleDelete = (id: string) => {
-        if (confirm("Apakah Anda yakin ingin menghapus data ini?")) {
-            setPencatatan(pencatatan.filter(item => item.id !== id));
+        setDeletingId(id);
+        setIsDeleteDialogOpen(true);
+    };
+
+    // Fungsi untuk konfirmasi hapus dari dialog
+    const confirmDelete = () => {
+        if (deletingId) {
+            setPencatatan(pencatatan.filter(item => item.id !== deletingId));
         }
+        setDeletingId(null);
+        setIsDeleteDialogOpen(false);
     };
 
     // Format currency
@@ -198,7 +264,7 @@ export default function PencatatanPageComponent() {
     return (
         <MainLayoutPenjual>
             <div className="space-y-6">
-                {/* Header */}
+                {/* Header (tanpa perubahan) */}
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">Pencatatan Penjualan</h1>
                     <p className="text-sm text-gray-500 mt-1">
@@ -206,8 +272,9 @@ export default function PencatatanPageComponent() {
                     </p>
                 </div>
 
-                {/* Stats Cards */}
+                {/* Stats Cards (tanpa perubahan) */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* ... Card 1, 2, 3 ... */}
                     <Card>
                         <CardContent className="pt-6">
                             <div className="text-sm font-medium text-gray-500">Total Penjualan</div>
@@ -238,6 +305,7 @@ export default function PencatatanPageComponent() {
 
                 {/* Search and Add Button */}
                 <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+                    {/* Search Input (tanpa perubahan) */}
                     <div className="relative w-full sm:w-96">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                         <Input
@@ -251,167 +319,197 @@ export default function PencatatanPageComponent() {
                         />
                     </div>
 
-                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button
-                                className="w-full sm:w-auto"
-                                onClick={() => {
-                                    setEditingId(null);
-                                    setFormData({
-                                        tanggal: "",
-                                        namaProduk: "",
-                                        kategori: "",
-                                        jumlah: "",
-                                        hargaSatuan: "",
-                                        pembeli: "",
-                                        metodePembayaran: "",
-                                    });
-                                }}
-                            >
-                                <Plus className="h-4 w-4 mr-2" />
-                                Tambah Pencatatan
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                            <DialogHeader>
-                                <DialogTitle>
-                                    {editingId ? "Edit Pencatatan" : "Tambah Pencatatan Baru"}
-                                </DialogTitle>
-                                <DialogDescription>
-                                    Isi form di bawah untuk {editingId ? "mengupdate" : "menambahkan"} pencatatan penjualan
-                                </DialogDescription>
-                            </DialogHeader>
-                            <form onSubmit={handleSubmit} className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="tanggal">Tanggal *</Label>
-                                        <Input
-                                            id="tanggal"
-                                            type="date"
-                                            required
-                                            value={formData.tanggal}
-                                            onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="kategori">Kategori *</Label>
-                                        <Select
-                                            value={formData.kategori}
-                                            onValueChange={(value) => setFormData({ ...formData, kategori: value })}
-                                            required
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Pilih kategori" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="Makanan">Makanan</SelectItem>
-                                                <SelectItem value="Minuman">Minuman</SelectItem>
-                                                <SelectItem value="Kerajinan">Kerajinan</SelectItem>
-                                                <SelectItem value="Fashion">Fashion</SelectItem>
-                                                <SelectItem value="Lainnya">Lainnya</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
+                    {/* === PERUBAHAN DI SINI === */}
+                    {/* Tombol ini tidak lagi membuka Dialog, tapi navigasi ke halaman 'tambah' */}
+                    <Button
+                        className="w-full sm:w-auto bg-blue-600 hover:bg-blue-900"
+                        onClick={() => window.location.href = '/penjual/pencatatan/tambah'} // MODIFIKASI: Menggunakan window.location.href
+                    >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Tambah Pencatatan
+                    </Button>
+                    {/* === AKHIR PERUBAHAN === */}
 
+                </div>
+
+                {/* === PERUBAHAN DI SINI === */}
+                {/* Dialog ini sekarang hanya untuk EDIT, tidak lagi dipicu oleh tombol 'Tambah' */}
+                {/* Dialog ini akan terbuka ketika 'handleEdit' dipanggil */}
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle>
+                                Edit Pencatatan {/* Judul statis untuk Edit */}
+                            </DialogTitle>
+                            <DialogDescription>
+                                Isi form di bawah untuk mengupdate pencatatan penjualan
+                            </DialogDescription>
+                        </DialogHeader>
+                        {/* Form ini identik dengan aslinya */}
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="namaProduk">Nama Produk *</Label>
+                                    <Label htmlFor="tanggal">Tanggal *</Label>
                                     <Input
-                                        id="namaProduk"
-                                        placeholder="Contoh: Keripik Singkong"
+                                        id="tanggal"
+                                        type="date"
                                         required
-                                        value={formData.namaProduk}
-                                        onChange={(e) => setFormData({ ...formData, namaProduk: e.target.value })}
+                                        value={formData.tanggal}
+                                        onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
                                     />
                                 </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="jumlah">Jumlah *</Label>
-                                        <Input
-                                            id="jumlah"
-                                            type="number"
-                                            min="1"
-                                            placeholder="0"
-                                            required
-                                            value={formData.jumlah}
-                                            onChange={(e) => setFormData({ ...formData, jumlah: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="hargaSatuan">Harga Satuan (Rp) *</Label>
-                                        <Input
-                                            id="hargaSatuan"
-                                            type="number"
-                                            min="0"
-                                            placeholder="0"
-                                            required
-                                            value={formData.hargaSatuan}
-                                            onChange={(e) => setFormData({ ...formData, hargaSatuan: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-
-                                {formData.jumlah && formData.hargaSatuan && (
-                                    <div className="bg-blue-50 p-3 rounded-lg">
-                                        <div className="text-sm text-blue-600 font-medium">Total Harga</div>
-                                        <div className="text-2xl font-bold text-blue-700 mt-1">
-                                            {formatCurrency(parseInt(formData.jumlah) * parseInt(formData.hargaSatuan))}
-                                        </div>
-                                    </div>
-                                )}
-
                                 <div className="space-y-2">
-                                    <Label htmlFor="pembeli">Nama Pembeli *</Label>
-                                    <Input
-                                        id="pembeli"
-                                        placeholder="Contoh: Ibu Siti"
-                                        required
-                                        value={formData.pembeli}
-                                        onChange={(e) => setFormData({ ...formData, pembeli: e.target.value })}
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="metodePembayaran">Metode Pembayaran *</Label>
+                                    <Label htmlFor="kategori">Kategori *</Label>
                                     <Select
-                                        value={formData.metodePembayaran}
-                                        onValueChange={(value) => setFormData({ ...formData, metodePembayaran: value })}
+                                        value={formData.kategori}
+                                        onValueChange={(value) => setFormData({ ...formData, kategori: value })}
                                         required
                                     >
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Pilih metode pembayaran" />
+                                            <SelectValue placeholder="Pilih kategori" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="Tunai">Tunai</SelectItem>
-                                            <SelectItem value="Transfer">Transfer Bank</SelectItem>
-                                            <SelectItem value="E-Wallet">E-Wallet (GoPay, OVO, dll)</SelectItem>
-                                            <SelectItem value="QRIS">QRIS</SelectItem>
+                                            <SelectItem value="Makanan">Makanan</SelectItem>
+                                            <SelectItem value="Minuman">Minuman</SelectItem>
+                                            <SelectItem value="Kerajinan">Kerajinan</SelectItem>
+                                            <SelectItem value="Fashion">Fashion</SelectItem>
+                                            <SelectItem value="Lainnya">Lainnya</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
+                            </div>
 
-                                <DialogFooter>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() => {
-                                            setIsDialogOpen(false);
-                                            setEditingId(null);
-                                        }}
-                                    >
-                                        Batal
-                                    </Button>
-                                    <Button type="submit">
-                                        {editingId ? "Update" : "Simpan"}
-                                    </Button>
-                                </DialogFooter>
-                            </form>
-                        </DialogContent>
-                    </Dialog>
-                </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="namaProduk">Nama Produk *</Label>
+                                <Input
+                                    id="namaProduk"
+                                    placeholder="Contoh: Keripik Singkong"
+                                    required
+                                    value={formData.namaProduk}
+                                    onChange={(e) => setFormData({ ...formData, namaProduk: e.target.value })}
+                                />
+                            </div>
 
-                {/* Table */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="jumlah">Jumlah *</Label>
+                                    <Input
+                                        id="jumlah"
+                                        type="number"
+                                        min="1"
+                                        placeholder="0"
+                                        required
+                                        value={formData.jumlah}
+                                        onChange={(e) => setFormData({ ...formData, jumlah: e.target.value })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="hargaSatuan">Harga Satuan (Rp) *</Label>
+                                    <Input
+                                        id="hargaSatuan"
+                                        type="number"
+                                        min="0"
+                                        placeholder="0"
+                                        required
+                                        value={formData.hargaSatuan}
+                                        onChange={(e) => setFormData({ ...formData, hargaSatuan: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            {formData.jumlah && formData.hargaSatuan && (
+                                <div className="bg-blue-50 p-3 rounded-lg">
+                                    <div className="text-sm text-blue-600 font-medium">Total Harga</div>
+                                    <div className="text-2xl font-bold text-blue-700 mt-1">
+                                        {formatCurrency(parseInt(formData.jumlah) * parseInt(formData.hargaSatuan))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="space-y-2">
+                                <Label htmlFor="pembeli">Nama Pembeli *</Label>
+                                <Input
+                                    id="pembeli"
+                                    placeholder="Contoh: Ibu Siti"
+                                    required
+                                    value={formData.pembeli}
+                                    onChange={(e) => setFormData({ ...formData, pembeli: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="metodePembayaran">Metode Pembayaran *</Label>
+                                <Select
+                                    value={formData.metodePembayaran}
+                                    onValueChange={(value) => setFormData({ ...formData, metodePembayaran: value })}
+                                    required
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Pilih metode pembayaran" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Tunai">Tunai</SelectItem>
+                                        <SelectItem value="Transfer">Transfer Bank</SelectItem>
+                                        <SelectItem value="E-Wallet">E-Wallet (GoPay, OVO, dll)</SelectItem>
+                                        <SelectItem value="QRIS">QRIS</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <DialogFooter>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => {
+                                        setIsDialogOpen(false);
+                                        setEditingId(null);
+                                    }}
+                                >
+                                    Batal
+                                </Button>
+                                <Button type="submit">
+                                    Update {/* Teks tombol statis untuk Edit */}
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+                {/* === AKHIR PERUBAHAN DIALOG === */}
+
+                {/* === DIALOG KONFIRMASI HAPUS === */}
+                <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                    <DialogContent className="max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Konfirmasi Hapus</DialogTitle>
+                            <DialogDescription>
+                                Apakah Anda yakin ingin menghapus data pencatatan ini? Tindakan ini tidak dapat dibatalkan.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter className="gap-2 sm:justify-end">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                    setIsDeleteDialogOpen(false);
+                                    setDeletingId(null);
+                                }}
+                            >
+                                Batal
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="destructive" // Warna merah untuk tombol hapus
+                                onClick={confirmDelete}
+                            >
+                                Ya, Hapus
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+                {/* === AKHIR DIALOG KONFIRMASI HAPUS === */}
+
+
+                {/* Table (tanpa perubahan, tombol Edit akan memicu dialog di atas) */}
                 <Card>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
@@ -460,7 +558,7 @@ export default function PencatatanPageComponent() {
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            onClick={() => handleEdit(item)}
+                                                            onClick={() => handleEdit(item)} // Ini akan membuka Dialog
                                                             className="h-8 w-8 p-0"
                                                         >
                                                             <Pencil className="h-4 w-4" />
@@ -492,9 +590,9 @@ export default function PencatatanPageComponent() {
                     </CardContent>
                 </Card>
 
-                {/* Pagination */}
+                {/* Pagination (tanpa perubahan) */}
                 {totalPages > 1 && (
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between pt-4"> {/* Penambahan pt-4 untuk spasi */}
                         <div className="text-sm text-gray-500">
                             Menampilkan {startIndex + 1} - {Math.min(endIndex, filteredData.length)} dari{" "}
                             {filteredData.length} data
