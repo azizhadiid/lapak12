@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useRouter } from "next/navigation";
 import MainLayoutPenjual from "../MainLayoutPenjual";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,161 +14,60 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Search, Plus, ChevronLeft, ChevronRight, Calendar, Pencil, Trash2 } from "lucide-react";
+import { Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-
-// Tipe data untuk pencatatan penjualan
-interface PencatatanPenjualan {
-    id: string;
-    tanggal: string;
-    namaProduk: string;
-    kategori: string;
-    jumlah: number;
-    hargaSatuan: number;
-    totalHarga: number;
-    pembeli: string;
-    metodePembayaran: string;
-}
-
-// Data dummy untuk contoh
-const dummyData: PencatatanPenjualan[] = [
-    {
-        id: "1",
-        tanggal: "2024-11-01",
-        namaProduk: "Keripik Singkong",
-        kategori: "Makanan",
-        jumlah: 5,
-        hargaSatuan: 15000,
-        totalHarga: 75000,
-        pembeli: "Ibu Siti",
-        metodePembayaran: "Tunai",
-    },
-    {
-        id: "2",
-        tanggal: "2024-11-02",
-        namaProduk: "Sambal Botol",
-        kategori: "Makanan",
-        jumlah: 3,
-        hargaSatuan: 25000,
-        totalHarga: 75000,
-        pembeli: "Pak Budi",
-        metodePembayaran: "Transfer",
-    },
-    {
-        id: "3",
-        tanggal: "2024-11-03",
-        namaProduk: "Tas Rajut",
-        kategori: "Kerajinan",
-        jumlah: 1,
-        hargaSatuan: 150000,
-        totalHarga: 150000,
-        pembeli: "Ibu Ani",
-        metodePembayaran: "E-Wallet",
-    },
-    {
-        id: "4",
-        tanggal: "2024-11-03",
-        namaProduk: "Tas Rajut",
-        kategori: "Kerajinan",
-        jumlah: 1,
-        hargaSatuan: 150000,
-        totalHarga: 150000,
-        pembeli: "Ibu Ani",
-        metodePembayaran: "E-Wallet",
-    },
-    {
-        id: "5",
-        tanggal: "2024-11-03",
-        namaProduk: "Tas Rajut",
-        kategori: "Kerajinan",
-        jumlah: 1,
-        hargaSatuan: 150000,
-        totalHarga: 150000,
-        pembeli: "Ibu Ani",
-        metodePembayaran: "E-Wallet",
-    },
-    {
-        id: "6",
-        tanggal: "2024-11-03",
-        namaProduk: "Tas Rajut",
-        kategori: "Kerajinan",
-        jumlah: 1,
-        hargaSatuan: 150000,
-        totalHarga: 150000,
-        pembeli: "Ibu Ani",
-        metodePembayaran: "E-Wallet",
-    },
-    {
-        id: "7",
-        tanggal: "2024-11-03",
-        namaProduk: "Tas Rajut",
-        kategori: "Kerajinan",
-        jumlah: 1,
-        hargaSatuan: 150000,
-        totalHarga: 150000,
-        pembeli: "Ibu Ani",
-        metodePembayaran: "E-Wallet",
-    },
-    {
-        id: "8",
-        tanggal: "2024-11-03",
-        namaProduk: "Tas Rajut",
-        kategori: "Kerajinan",
-        jumlah: 1,
-        hargaSatuan: 150000,
-        totalHarga: 150000,
-        pembeli: "Ibu Ani",
-        metodePembayaran: "E-Wallet",
-    },
-];
+import { Penjualan } from "@/lib/types/pencatatan";
+import Link from "next/link";
 
 export default function PencatatanPageComponent() {
-    const [pencatatan, setPencatatan] = useState<PencatatanPenjualan[]>(dummyData);
+    const [pencatatan, setPencatatan] = useState<Penjualan[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
+    const [loading, setLoading] = useState(true);
 
-    // State untuk form dialog (sekarang hanya untuk EDIT)
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const [editingId, setEditingId] = useState<string | null>(null);
+    const supabase = createClientComponentClient();
+    const router = useRouter();
 
-    // State untuk dialog konfirmasi Hapus
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    const [deletingId, setDeletingId] = useState<string | null>(null);
+    // ✅ CEK LOGIN DAN ROLE PENJUAL
+    useEffect(() => {
+        const checkUser = async () => {
+            const {
+                data: { user },
+            } = await supabase.auth.getUser();
 
-    const [formData, setFormData] = useState({
-        tanggal: "",
-        namaProduk: "",
-        kategori: "",
-        jumlah: "",
-        hargaSatuan: "",
-        pembeli: "",
-        metodePembayaran: "",
-    });
+            if (!user) {
+                // Belum login
+                router.push("/login");
+                return;
+            }
+
+            // Kalau lolos, ambil data penjualan
+            fetchData();
+        };
+
+        const fetchData = async () => {
+            setLoading(true);
+            const { data, error } = await supabase
+                .from("penjualan")
+                .select("*")
+                .order("tanggal", { ascending: false });
+
+            if (error) console.error("Error:", error);
+            else setPencatatan(data as Penjualan[]);
+            setLoading(false);
+        };
+
+        checkUser();
+    }, []);
 
     const itemsPerPage = 5;
 
     // Filter data berdasarkan search query
-    const filteredData = pencatatan.filter((item) =>
-        item.namaProduk.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.pembeli.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.kategori.toLowerCase().includes(searchQuery.toLowerCase())
+    const filteredData = pencatatan.filter(
+        (item) =>
+            item.nama_produk.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.nama_pembeli.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.kategori.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     // Pagination
@@ -174,74 +75,6 @@ export default function PencatatanPageComponent() {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     const currentData = filteredData.slice(startIndex, endIndex);
-
-    // Handle form submit
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (editingId) {
-            // Update existing
-            const updatedPencatatan: PencatatanPenjualan = {
-                id: editingId,
-                tanggal: formData.tanggal,
-                namaProduk: formData.namaProduk,
-                kategori: formData.kategori,
-                jumlah: parseInt(formData.jumlah),
-                hargaSatuan: parseInt(formData.hargaSatuan),
-                totalHarga: parseInt(formData.jumlah) * parseInt(formData.hargaSatuan),
-                pembeli: formData.pembeli,
-                metodePembayaran: formData.metodePembayaran,
-            };
-
-            setPencatatan(pencatatan.map(item =>
-                item.id === editingId ? updatedPencatatan : item
-            ));
-        }
-        // Bagian 'else' (untuk tambah baru) telah dihapus dari sini
-
-        // Reset form
-        setFormData({
-            tanggal: "",
-            namaProduk: "",
-            kategori: "",
-            jumlah: "",
-            hargaSatuan: "",
-            pembeli: "",
-            metodePembayaran: "",
-        });
-        setEditingId(null);
-        setIsDialogOpen(false);
-    };
-
-    // Handle edit
-    const handleEdit = (item: PencatatanPenjualan) => {
-        setFormData({
-            tanggal: item.tanggal,
-            namaProduk: item.namaProduk,
-            kategori: item.kategori,
-            jumlah: item.jumlah.toString(),
-            hargaSatuan: item.hargaSatuan.toString(),
-            pembeli: item.pembeli,
-            metodePembayaran: item.metodePembayaran,
-        });
-        setEditingId(item.id);
-        setIsDialogOpen(true);
-    };
-
-    // Handle delete
-    const handleDelete = (id: string) => {
-        setDeletingId(id);
-        setIsDeleteDialogOpen(true);
-    };
-
-    // Fungsi untuk konfirmasi hapus dari dialog
-    const confirmDelete = () => {
-        if (deletingId) {
-            setPencatatan(pencatatan.filter(item => item.id !== deletingId));
-        }
-        setDeletingId(null);
-        setIsDeleteDialogOpen(false);
-    };
 
     // Format currency
     const formatCurrency = (amount: number) => {
@@ -261,10 +94,22 @@ export default function PencatatanPageComponent() {
         });
     };
 
+    if (loading) {
+        return (
+            <MainLayoutPenjual>
+                <div className="flex justify-center items-center h-64 space-x-2">
+                    <div className="w-3 h-3 bg-gray-600 rounded-full animate-bounce"></div>
+                    <div className="w-3 h-3 bg-gray-500 rounded-full animate-bounce delay-150"></div>
+                    <div className="w-3 h-3 bg-gray-400 rounded-full animate-bounce delay-300"></div>
+                </div>
+            </MainLayoutPenjual>
+        );
+    }
+
     return (
         <MainLayoutPenjual>
             <div className="space-y-6">
-                {/* Header (tanpa perubahan) */}
+                {/* Header */}
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">Pencatatan Penjualan</h1>
                     <p className="text-sm text-gray-500 mt-1">
@@ -272,9 +117,8 @@ export default function PencatatanPageComponent() {
                     </p>
                 </div>
 
-                {/* Stats Cards (tanpa perubahan) */}
+                {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* ... Card 1, 2, 3 ... */}
                     <Card>
                         <CardContent className="pt-6">
                             <div className="text-sm font-medium text-gray-500">Total Penjualan</div>
@@ -287,7 +131,7 @@ export default function PencatatanPageComponent() {
                         <CardContent className="pt-6">
                             <div className="text-sm font-medium text-gray-500">Total Pendapatan</div>
                             <div className="text-2xl font-bold text-green-600 mt-2">
-                                {formatCurrency(pencatatan.reduce((sum, item) => sum + item.totalHarga, 0))}
+                                {formatCurrency(pencatatan.reduce((sum, item) => sum + item.total_harga, 0))}
                             </div>
                         </CardContent>
                     </Card>
@@ -295,9 +139,13 @@ export default function PencatatanPageComponent() {
                         <CardContent className="pt-6">
                             <div className="text-sm font-medium text-gray-500">Bulan Ini</div>
                             <div className="text-2xl font-bold text-blue-600 mt-2">
-                                {pencatatan.filter(item =>
-                                    new Date(item.tanggal).getMonth() === new Date().getMonth()
-                                ).length}
+                                {
+                                    pencatatan.filter(
+                                        (item) =>
+                                            new Date(item.tanggal).getMonth() ===
+                                            new Date().getMonth()
+                                    ).length
+                                }
                             </div>
                         </CardContent>
                     </Card>
@@ -305,7 +153,6 @@ export default function PencatatanPageComponent() {
 
                 {/* Search and Add Button */}
                 <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-                    {/* Search Input (tanpa perubahan) */}
                     <div className="relative w-full sm:w-96">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                         <Input
@@ -319,199 +166,18 @@ export default function PencatatanPageComponent() {
                         />
                     </div>
 
-                    {/* === PERUBAHAN DI SINI === */}
-                    {/* Tombol ini tidak lagi membuka Dialog, tapi navigasi ke halaman 'tambah' */}
                     <Button
                         className="w-full sm:w-auto bg-blue-600 hover:bg-blue-900"
-                        onClick={() => window.location.href = '/penjual/pencatatan/tambah'} // MODIFIKASI: Menggunakan window.location.href
+                        onClick={() => (window.location.href = "/penjual/pencatatan/tambah")}
                     >
                         <Plus className="h-4 w-4 mr-2" />
                         Tambah Pencatatan
                     </Button>
-                    {/* === AKHIR PERUBAHAN === */}
-
                 </div>
 
-                {/* === PERUBAHAN DI SINI === */}
-                {/* Dialog ini sekarang hanya untuk EDIT, tidak lagi dipicu oleh tombol 'Tambah' */}
-                {/* Dialog ini akan terbuka ketika 'handleEdit' dipanggil */}
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                            <DialogTitle>
-                                Edit Pencatatan {/* Judul statis untuk Edit */}
-                            </DialogTitle>
-                            <DialogDescription>
-                                Isi form di bawah untuk mengupdate pencatatan penjualan
-                            </DialogDescription>
-                        </DialogHeader>
-                        {/* Form ini identik dengan aslinya */}
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="tanggal">Tanggal *</Label>
-                                    <Input
-                                        id="tanggal"
-                                        type="date"
-                                        required
-                                        value={formData.tanggal}
-                                        onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="kategori">Kategori *</Label>
-                                    <Select
-                                        value={formData.kategori}
-                                        onValueChange={(value) => setFormData({ ...formData, kategori: value })}
-                                        required
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Pilih kategori" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Makanan">Makanan</SelectItem>
-                                            <SelectItem value="Minuman">Minuman</SelectItem>
-                                            <SelectItem value="Kerajinan">Kerajinan</SelectItem>
-                                            <SelectItem value="Fashion">Fashion</SelectItem>
-                                            <SelectItem value="Lainnya">Lainnya</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="namaProduk">Nama Produk *</Label>
-                                <Input
-                                    id="namaProduk"
-                                    placeholder="Contoh: Keripik Singkong"
-                                    required
-                                    value={formData.namaProduk}
-                                    onChange={(e) => setFormData({ ...formData, namaProduk: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="jumlah">Jumlah *</Label>
-                                    <Input
-                                        id="jumlah"
-                                        type="number"
-                                        min="1"
-                                        placeholder="0"
-                                        required
-                                        value={formData.jumlah}
-                                        onChange={(e) => setFormData({ ...formData, jumlah: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="hargaSatuan">Harga Satuan (Rp) *</Label>
-                                    <Input
-                                        id="hargaSatuan"
-                                        type="number"
-                                        min="0"
-                                        placeholder="0"
-                                        required
-                                        value={formData.hargaSatuan}
-                                        onChange={(e) => setFormData({ ...formData, hargaSatuan: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            {formData.jumlah && formData.hargaSatuan && (
-                                <div className="bg-blue-50 p-3 rounded-lg">
-                                    <div className="text-sm text-blue-600 font-medium">Total Harga</div>
-                                    <div className="text-2xl font-bold text-blue-700 mt-1">
-                                        {formatCurrency(parseInt(formData.jumlah) * parseInt(formData.hargaSatuan))}
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="space-y-2">
-                                <Label htmlFor="pembeli">Nama Pembeli *</Label>
-                                <Input
-                                    id="pembeli"
-                                    placeholder="Contoh: Ibu Siti"
-                                    required
-                                    value={formData.pembeli}
-                                    onChange={(e) => setFormData({ ...formData, pembeli: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="metodePembayaran">Metode Pembayaran *</Label>
-                                <Select
-                                    value={formData.metodePembayaran}
-                                    onValueChange={(value) => setFormData({ ...formData, metodePembayaran: value })}
-                                    required
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Pilih metode pembayaran" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Tunai">Tunai</SelectItem>
-                                        <SelectItem value="Transfer">Transfer Bank</SelectItem>
-                                        <SelectItem value="E-Wallet">E-Wallet (GoPay, OVO, dll)</SelectItem>
-                                        <SelectItem value="QRIS">QRIS</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <DialogFooter>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => {
-                                        setIsDialogOpen(false);
-                                        setEditingId(null);
-                                    }}
-                                >
-                                    Batal
-                                </Button>
-                                <Button type="submit">
-                                    Update {/* Teks tombol statis untuk Edit */}
-                                </Button>
-                            </DialogFooter>
-                        </form>
-                    </DialogContent>
-                </Dialog>
-                {/* === AKHIR PERUBAHAN DIALOG === */}
-
-                {/* === DIALOG KONFIRMASI HAPUS === */}
-                <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                    <DialogContent className="max-w-md">
-                        <DialogHeader>
-                            <DialogTitle>Konfirmasi Hapus</DialogTitle>
-                            <DialogDescription>
-                                Apakah Anda yakin ingin menghapus data pencatatan ini? Tindakan ini tidak dapat dibatalkan.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <DialogFooter className="gap-2 sm:justify-end">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => {
-                                    setIsDeleteDialogOpen(false);
-                                    setDeletingId(null);
-                                }}
-                            >
-                                Batal
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="destructive" // Warna merah untuk tombol hapus
-                                onClick={confirmDelete}
-                            >
-                                Ya, Hapus
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-                {/* === AKHIR DIALOG KONFIRMASI HAPUS === */}
-
-
-                {/* Table (tanpa perubahan, tombol Edit akan memicu dialog di atas) */}
+                {/* Table */}
                 <Card>
-                    <CardContent className="p-0">
+                    <CardContent className="p-0 pb-4">
                         <div className="overflow-x-auto">
                             <Table>
                                 <TableHeader>
@@ -534,7 +200,7 @@ export default function PencatatanPageComponent() {
                                                 <TableCell className="font-medium">
                                                     {formatDate(item.tanggal)}
                                                 </TableCell>
-                                                <TableCell>{item.namaProduk}</TableCell>
+                                                <TableCell>{item.nama_produk}</TableCell>
                                                 <TableCell>
                                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                                         {item.kategori}
@@ -542,15 +208,15 @@ export default function PencatatanPageComponent() {
                                                 </TableCell>
                                                 <TableCell className="text-right">{item.jumlah}</TableCell>
                                                 <TableCell className="text-right">
-                                                    {formatCurrency(item.hargaSatuan)}
+                                                    {formatCurrency(item.harga_satuan)}
                                                 </TableCell>
                                                 <TableCell className="text-right font-semibold text-green-600">
-                                                    {formatCurrency(item.totalHarga)}
+                                                    {formatCurrency(item.total_harga)}
                                                 </TableCell>
-                                                <TableCell>{item.pembeli}</TableCell>
+                                                <TableCell>{item.nama_pembeli}</TableCell>
                                                 <TableCell>
                                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                                        {item.metodePembayaran}
+                                                        {item.metode_pembayaran}
                                                     </span>
                                                 </TableCell>
                                                 <TableCell>
@@ -558,15 +224,15 @@ export default function PencatatanPageComponent() {
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            onClick={() => handleEdit(item)} // Ini akan membuka Dialog
                                                             className="h-8 w-8 p-0"
                                                         >
-                                                            <Pencil className="h-4 w-4" />
+                                                            <Link href={`/penjual/pencatatan/${item.id}`}>
+                                                                <Pencil className="h-4 w-4" />
+                                                            </Link>
                                                         </Button>
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            onClick={() => handleDelete(item.id)}
                                                             className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                                                         >
                                                             <Trash2 className="h-4 w-4" />
@@ -590,11 +256,12 @@ export default function PencatatanPageComponent() {
                     </CardContent>
                 </Card>
 
-                {/* Pagination (tanpa perubahan) */}
+                {/* Pagination */}
                 {totalPages > 1 && (
-                    <div className="flex items-center justify-between pt-4"> {/* Penambahan pt-4 untuk spasi */}
+                    <div className="flex items-center justify-between pt-4">
                         <div className="text-sm text-gray-500">
-                            Menampilkan {startIndex + 1} - {Math.min(endIndex, filteredData.length)} dari{" "}
+                            Menampilkan {startIndex + 1} -{" "}
+                            {Math.min(endIndex, filteredData.length)} dari{" "}
                             {filteredData.length} data
                         </div>
                         <div className="flex items-center gap-2">
@@ -621,6 +288,6 @@ export default function PencatatanPageComponent() {
                     </div>
                 )}
             </div>
-        </MainLayoutPenjual>
+        </MainLayoutPenjual >
     );
 }
