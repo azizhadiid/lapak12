@@ -222,6 +222,7 @@ export default function PencatatanPageComponent() {
                                                 <TableCell>
                                                     <div className="flex items-center justify-center gap-2">
                                                         <Button
+                                                            asChild
                                                             variant="ghost"
                                                             size="sm"
                                                             className="h-8 w-8 p-0"
