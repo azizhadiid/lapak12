@@ -18,6 +18,8 @@ import { Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-
 import { Card, CardContent } from "@/components/ui/card";
 import { Penjualan } from "@/lib/types/pencatatan";
 import Link from "next/link";
+import { toast } from "sonner";
+import Swal from "sweetalert2";
 
 export default function PencatatanPageComponent() {
     const [pencatatan, setPencatatan] = useState<Penjualan[]>([]);
@@ -59,6 +61,52 @@ export default function PencatatanPageComponent() {
 
         checkUser();
     }, []);
+
+    // Fungsi ini berisi logika untuk menghapus data di Supabase
+    const performDelete = async (id: number) => {
+        // Kita gunakan toast.promise agar ada notifikasi loading, sukses, dan error
+        const deletePromise = async () => {
+            const { error } = await supabase
+                .from("penjualan")
+                .delete()
+                .eq("id", id); // RLS (Policies) Anda akan mengamankan ini
+
+            if (error) {
+                // Jika RLS gagal atau ada error lain, lempar error
+                throw new Error(error.message);
+            }
+
+            // Jika sukses, update state di UI
+            setPencatatan((prev) => prev.filter(p => p.id !== id));
+        };
+
+        // Tampilkan toast
+        toast.promise(deletePromise(), {
+            loading: 'Menghapus data...',
+            success: 'Data berhasil dihapus!',
+            error: (err) => `Gagal menghapus: ${err.message}`, // Tampilkan pesan error
+        });
+    };
+
+    // Fungsi ini akan memunculkan pop-up SweetAlert
+    const confirmDelete = (item: Penjualan) => {
+        Swal.fire({
+            title: 'Anda yakin?',
+            text: `Data penjualan "${item.nama_produk}" akan dihapus permanen!`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33', // Warna merah untuk tombol hapus
+            cancelButtonColor: '#6b7280', // Warna abu-abu untuk batal
+            confirmButtonText: 'Ya, hapus!',
+            cancelButtonText: 'Batal',
+        }).then((result) => {
+            // Jika user menekan tombol "Ya, hapus!"
+            if (result.isConfirmed) {
+                // Panggil fungsi yang menjalankan logika hapus
+                performDelete(item.id as number);
+            }
+        });
+    };
 
     const itemsPerPage = 5;
 
@@ -235,6 +283,7 @@ export default function PencatatanPageComponent() {
                                                             variant="ghost"
                                                             size="sm"
                                                             className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                            onClick={() => confirmDelete(item)}
                                                         >
                                                             <Trash2 className="h-4 w-4" />
                                                         </Button>
