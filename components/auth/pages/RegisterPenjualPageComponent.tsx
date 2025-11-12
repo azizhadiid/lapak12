@@ -10,6 +10,7 @@ import {
     Mail,
     User,
     XCircle,
+    AlertCircle,
 } from "lucide-react";
 import MainLayoutAuth from "../MainLayoutAuth";
 import SectionIlustrationAuthPenjual from "../components/SectionIlustrationPenjual";
@@ -81,10 +82,7 @@ export default function RegisterPenjualPageComponent() {
         setAlertMessage(null); // Reset alert setiap kali submit
 
         if (!validateForm()) {
-            setAlertMessage({
-                type: 'error',
-                message: 'Mohon periksa kembali form yang Anda isi.',
-            });
+            // HAPUS ALERT REDUNDAN
             return;
         }
 
@@ -170,9 +168,8 @@ export default function RegisterPenjualPageComponent() {
 
                 {/* Kanan - Form (Gaya shadcn/ui) */}
                 <div className="w-full">
-                    {/* Meniru Card shadcn */}
                     <div className="rounded-2xl border border-gray-200 bg-white text-gray-900 shadow-xl shadow-blue-100/50">
-                        {/* Meniru CardHeader */}
+                        {/* Header */}
                         <div className="flex flex-col space-y-1.5 p-6 sm:p-8">
                             <h3 className="text-2xl sm:text-3xl font-semibold leading-none tracking-tight text-gray-900">
                                 Buat Akun
@@ -182,11 +179,16 @@ export default function RegisterPenjualPageComponent() {
                             </p>
                         </div>
 
-                        {/* Meniru CardContent */}
+                        {/* Content */}
                         <form
                             onSubmit={handleSubmit}
-                            className="p-6 sm:p-8 pt-0 space-y-5 lg:-mt-10"
+                            // Hapus padding atas agar alert menempel rapi
+                            className="p-6 sm:p-8 space-y-5"
+                            noValidate // Matikan validasi browser
                         >
+                            {/* Alert ini sekarang HANYA untuk notifikasi server 
+                              (sukses, email terdaftar, atau error server)
+                            */}
                             {alertMessage && (
                                 <Alert
                                     variant={
@@ -212,6 +214,8 @@ export default function RegisterPenjualPageComponent() {
                                 </Alert>
                             )}
 
+                            {/* --- 3. PERBAIKAN DESAIN VALIDASI --- */}
+
                             {/* Username */}
                             <div className="space-y-2">
                                 <label
@@ -229,13 +233,19 @@ export default function RegisterPenjualPageComponent() {
                                         placeholder="Masukkan username"
                                         value={formData.username}
                                         onChange={handleChange}
-                                        className={`flex h-10 w-full rounded-md border ${errors.username ? "border-red-300" : "border-gray-200"
-                                            } bg-white px-3 py-2 text-sm ring-offset-white file:border-0 placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 pl-10`}
+                                        // Tambah pr-10 (padding-right) untuk ikon error
+                                        className={`flex h-10 w-full rounded-md border ${errors.username ? "border-red-300 ring-red-100" : "border-gray-200"
+                                            } bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 pl-10 pr-10`} // Tambah pr-10
                                     />
+                                    {/* Tambahkan ikon error di dalam field */}
                                     {errors.username && (
-                                        <p className="text-sm text-red-600">{errors.username}</p>
+                                        <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-red-500" />
                                     )}
                                 </div>
+                                {/* Pesan error tetap di bawah */}
+                                {errors.username && (
+                                    <p className="text-sm text-red-600 pt-1">{errors.username}</p>
+                                )}
                             </div>
 
                             {/* Email */}
@@ -252,13 +262,17 @@ export default function RegisterPenjualPageComponent() {
                                         placeholder="Masukkan email"
                                         value={formData.email}
                                         onChange={handleChange}
-                                        className={`flex h-10 w-full rounded-md border ${errors.email ? "border-red-300" : "border-gray-200"
-                                            } bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 pl-10`}
+                                        className={`flex h-10 w-full rounded-md border ${errors.email ? "border-red-300 ring-red-100" : "border-gray-200"
+                                            } bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 pl-10 pr-10`} // Tambah pr-10
                                     />
+                                    {/* Tambahkan ikon error di dalam field */}
                                     {errors.email && (
-                                        <p className="text-sm text-red-600">{errors.email}</p>
+                                        <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-red-500" />
                                     )}
                                 </div>
+                                {errors.email && (
+                                    <p className="text-sm text-red-600 pt-1">{errors.email}</p>
+                                )}
                             </div>
 
                             {/* Password */}
@@ -275,12 +289,15 @@ export default function RegisterPenjualPageComponent() {
                                         value={formData.password}
                                         onChange={handleChange}
                                         placeholder="Masukkan password"
-                                        className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 pl-10 pr-10"
+                                        // Tambahkan border merah di sini
+                                        className={`flex h-10 w-full rounded-md border ${errors.password ? "border-red-300 ring-red-100" : "border-gray-200"
+                                            } bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 pl-10 pr-10`}
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                                        // Ubah warna ikon mata menjadi merah jika error
+                                        className={`absolute right-3 top-1/2 -translate-y-1/2 ${errors.password ? "text-red-500" : "text-gray-500"} hover:text-gray-700 transition-colors`}
                                     >
                                         {showPassword ? (
                                             <EyeOff className="w-5 h-5" />
@@ -289,10 +306,13 @@ export default function RegisterPenjualPageComponent() {
                                         )}
                                     </button>
                                 </div>
+                                {errors.password && (
+                                    <p className="text-sm text-red-600 pt-1">{errors.password}</p>
+                                )}
                             </div>
 
                             {/* Konfirmasi Password */}
-                            <div className="space-y-2 mb-10">
+                            <div className="space-y-2">
                                 <label
                                     htmlFor="confirmPassword"
                                     className="text-sm font-medium"
@@ -308,14 +328,17 @@ export default function RegisterPenjualPageComponent() {
                                         value={formData.confirmPassword}
                                         onChange={handleChange}
                                         placeholder="Konfirmasi password Anda"
-                                        className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 pl-10 pr-10"
+                                        // Tambahkan border merah di sini
+                                        className={`flex h-10 w-full rounded-md border ${errors.confirmPassword ? "border-red-300 ring-red-100" : "border-gray-200"
+                                            } bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 pl-10 pr-10`}
                                     />
                                     <button
                                         type="button"
                                         onClick={() =>
                                             setShowConfirmPassword(!showConfirmPassword)
                                         }
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                                        // Ubah warna ikon mata menjadi merah jika error
+                                        className={`absolute right-3 top-1/2 -translate-y-1/2 ${errors.confirmPassword ? "text-red-500" : "text-gray-500"} hover:text-gray-700 transition-colors`}
                                     >
                                         {showConfirmPassword ? (
                                             <EyeOff className="w-5 h-5" />
@@ -324,12 +347,17 @@ export default function RegisterPenjualPageComponent() {
                                         )}
                                     </button>
                                 </div>
+                                {errors.confirmPassword && (
+                                    <p className="text-sm text-red-600 pt-1">{errors.confirmPassword}</p>
+                                )}
                             </div>
 
+                            {/* Tombol Submit */}
                             <button
                                 type="submit"
                                 disabled={isLoading}
-                                className="group relative w-full inline-flex items-center justify-center bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl font-semibold shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 transition-all hover:scale-[1.02] active:scale-[0.98] overflow-hidden text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                                // Tambah pt-2 kecil untuk spasi setelah error terakhir
+                                className="group relative w-full inline-flex items-center justify-center bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl font-semibold shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 transition-all hover:scale-[1.02] active:scale-[0.98] overflow-hidden text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 mt-2" // Tambah mt-2 (margin-top)
                             >
                                 {isLoading ? "Mendaftar..." : (
                                     <span className="relative flex items-center justify-center gap-2">
@@ -340,8 +368,8 @@ export default function RegisterPenjualPageComponent() {
                             </button>
                         </form>
 
-                        {/* Meniru CardFooter */}
-                        <div className="flex items-center justify-center p-6 sm:p-8 pt-0 lg:-mt-10">
+                        {/* Footer */}
+                        <div className="flex items-center justify-center p-6 sm:p-8 pt-0">
                             <p className="text-sm text-gray-600">
                                 Sudah punya akun?{' '}
                                 <a href="/login" className="text-blue-600 font-semibold hover:text-blue-700 transition-colors hover:underline">
