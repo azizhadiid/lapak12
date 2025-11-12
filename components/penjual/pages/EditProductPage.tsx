@@ -7,7 +7,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter } from 'next/navigation';
 
 // Impor ikon dari lucide-react
-import { Edit, Trash2, Package, Search, AlertCircle, Loader2 } from 'lucide-react';
+import { Edit, Trash2, Package, Search, AlertCircle, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // Impor komponen Shadcn/ui
 import {
@@ -25,14 +25,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Alert, AlertDescription, AlertTitle } from '../../ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../ui/alert-dialog';
-import {
-    Pagination,
-    PaginationContent,
-    PaginationItem,
-    PaginationLink,
-    PaginationNext,
-    PaginationPrevious,
-} from "@/components/ui/pagination"; // <-- BARU: Impor Pagination
 import MainLayoutPenjual from '../MainLayoutPenjual';
 
 // --- 2. DEFINISI TIPE & STATE ---
@@ -217,11 +209,7 @@ export default function EditProductTable() {
     // --- 7. RENDER KOMPONEN ---
     return (
         <MainLayoutPenjual>
-            {/* PERBAIKAN #1: TINGGI LAYER
-                Kita buat div ini mengisi sisa ruang (flex-1) dan menjadi
-                flex container (flex-col) untuk Card di dalamnya.
-                (Asumsi MainLayoutPenjual adalah flex-col min-h-screen)
-            */}
+            {/* PERBAIKAN #1: TINGGI LAYER */}
             <div className="flex-1 flex flex-col p-4 md:p-8">
 
                 {/* AlertDialog (tidak berubah, posisi sudah benar) */}
@@ -249,11 +237,7 @@ export default function EditProductTable() {
                     </AlertDialogContent>
                 </AlertDialog>
 
-                {/* PERBAIKAN #1: TINGGI LAYER
-                    Card kita buat 'flex-1' agar memanjang mengisi ruang 
-                    dan 'flex-col' agar bisa membagi Header, Content (scrollable), dan Footer.
-                    'overflow-hidden' penting agar Card tidak merusak layout.
-                */}
+                {/* PERBAIKAN #1: TINGGI LAYER */}
                 <Card className="w-full mx-auto shadow-lg flex-1 flex flex-col overflow-hidden">
                     <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4 space-y-0 pb-6">
                         <div className="flex items-center gap-3">
@@ -270,10 +254,7 @@ export default function EditProductTable() {
                         </Button>
                     </CardHeader>
 
-                    {/* PERBAIKAN #1: TINGGI LAYER
-                        CardContent kita buat 'flex-1' dan 'overflow-hidden'
-                        untuk menampung area tabel yang bisa di-scroll.
-                    */}
+                    {/* PERBAIKAN #1: TINGGI LAYER */}
                     <CardContent className="flex-1 flex flex-col overflow-hidden">
                         {/* Input Search (BARU: Terhubung dengan state) */}
                         <div className="relative mb-4">
@@ -295,13 +276,9 @@ export default function EditProductTable() {
                             </Alert>
                         )}
 
-                        {/* PERBAIKAN #1 & #3: TINGGI & RESPONSIVE
-                            Container ini (flex-1 overflow-auto) akan mengisi sisa ruang
-                            dan menyediakan scrollbar HANYA untuk area ini.
-                        */}
+                        {/* PERBAIKAN #1 & #3: TINGGI & RESPONSIVE */}
                         <div className="flex-1 overflow-auto">
                             {/* PERBAIKAN #3: RESPONSIVE (Tampilan Desktop) */}
-                            {/* 'hidden md:block' -> Sembunyikan di mobile, tampilkan di desktop */}
                             <div className="hidden md:block">
                                 <div className="overflow-x-auto rounded-md border">
                                     <Table>
@@ -309,7 +286,6 @@ export default function EditProductTable() {
                                             <TableRow>
                                                 <TableHead className="w-[80px]">Gambar</TableHead>
                                                 <TableHead>Nama Produk</TableHead>
-                                                {/* Sembunyikan di layar 'lg' ke bawah */}
                                                 <TableHead className="hidden lg:table-cell">Jenis</TableHead>
                                                 <TableHead>Stok</TableHead>
                                                 <TableHead>Harga</TableHead>
@@ -328,7 +304,6 @@ export default function EditProductTable() {
                                                 <TableRow>
                                                     <TableCell colSpan={6} className="h-24 text-center">
                                                         <p className="text-gray-500">
-                                                            {/* Pesan dinamis berdasarkan search */}
                                                             {debouncedSearchTerm
                                                                 ? "Tidak ada produk yang cocok dengan pencarian Anda."
                                                                 : 'Anda belum memiliki produk. Silakan "Tambah Produk Baru".'
@@ -346,7 +321,6 @@ export default function EditProductTable() {
                                                             </Avatar>
                                                         </TableCell>
                                                         <TableCell className="font-medium">{product.nama_produk}</TableCell>
-                                                        {/* Sembunyikan di layar 'lg' ke bawah */}
                                                         <TableCell className="hidden lg:table-cell">
                                                             <Badge variant="secondary">{product.jenis_product || '-'}</Badge>
                                                         </TableCell>
@@ -377,7 +351,6 @@ export default function EditProductTable() {
                             </div>
 
                             {/* PERBAIKAN #3: RESPONSIVE (Tampilan Mobile) */}
-                            {/* 'block md:hidden' -> Tampilkan HANYA di mobile */}
                             <div className="block md:hidden space-y-4 p-1">
                                 {isLoading && products.length === 0 ? (
                                     <div className="text-center p-10">
@@ -426,47 +399,45 @@ export default function EditProductTable() {
                         </div>
                     </CardContent>
 
+                    {/* === BLOK PERUBAHAN UTAMA DIMULAI DI SINI === */}
                     {/* PERBAIKAN #2: PAGINATION
-                        Kita tambahkan CardFooter untuk menampung komponen Pagination.
-                        'border-t' memberikan garis pemisah yang rapi.
+                        Mengganti komponen <Pagination> dengan <Button> sederhana
+                        agar konsisten dengan PencatatanPage.tsx
                     */}
-                    <CardFooter className="pt-6 border-t flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="text-sm text-muted-foreground">
-                            Menampilkan
-                            <strong className="mx-1">{Math.min(from + 1, totalProducts)} - {Math.min(from + products.length, totalProducts)}</strong>
-                            dari
-                            <strong className="mx-1">{totalProducts}</strong>
-                            produk
-                        </div>
-                        <Pagination>
-                            <PaginationContent>
-                                <PaginationItem>
-                                    <PaginationPrevious
-                                        href="#"
-                                        onClick={(e) => { e.preventDefault(); if (currentPage > 1) handlePageChange(currentPage - 1); }}
-                                        aria-disabled={currentPage === 1}
-                                        className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
-                                    />
-                                </PaginationItem>
+                    {totalPages > 1 && (
+                        <CardFooter className="pt-6 border-t flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="text-sm text-muted-foreground">
+                                Menampilkan
+                                <strong className="mx-1">{Math.min(from + 1, totalProducts)} - {Math.min(from + products.length, totalProducts)}</strong>
+                                dari
+                                <strong className="mx-1">{totalProducts}</strong>
+                                produk
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                                    disabled={currentPage === 1}
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                </Button>
+                                <div className="text-sm font-medium">
+                                    Halaman {currentPage} dari {totalPages}
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                                    disabled={currentPage === totalPages}
+                                >
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </CardFooter>
+                    )}
+                    {/* === BLOK PERUBAHAN UTAMA SELESAI === */}
 
-                                {/* Info halaman sederhana */}
-                                <PaginationItem>
-                                    <span className="px-4 text-sm">
-                                        Halaman {currentPage} dari {totalPages}
-                                    </span>
-                                </PaginationItem>
-
-                                <PaginationItem>
-                                    <PaginationNext
-                                        href="#"
-                                        onClick={(e) => { e.preventDefault(); if (currentPage < totalPages) handlePageChange(currentPage + 1); }}
-                                        aria-disabled={currentPage === totalPages}
-                                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
-                                    />
-                                </PaginationItem>
-                            </PaginationContent>
-                        </Pagination>
-                    </CardFooter>
                 </Card>
             </div>
         </MainLayoutPenjual>
