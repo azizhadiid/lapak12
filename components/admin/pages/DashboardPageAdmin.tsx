@@ -34,6 +34,8 @@ import {
     Users,
     UserCheck,
     UserX,
+    CheckCircle,
+    XCircle,
 } from "lucide-react";
 
 // Tipe data user
@@ -68,7 +70,8 @@ const generateDummyUsers = (): User[] => {
 };
 
 export default function DashboardAdminPage() {
-    const [users] = useState<User[]>(generateDummyUsers());
+    // --- PERUBAHAN: Jadikan state agar bisa di-update ---
+    const [users, setUsers] = useState<User[]>(generateDummyUsers());
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState<string>("all");
     const [currentPage, setCurrentPage] = useState(1);
@@ -95,7 +98,7 @@ export default function DashboardAdminPage() {
         return filteredUsers.slice(startIndex, startIndex + itemsPerPage);
     }, [filteredUsers, currentPage]);
 
-    // Reset page saat filter berubah
+    // Reset page saat filter berubah (tetap sama)
     const handleFilterChange = (value: string) => {
         setStatusFilter(value);
         setCurrentPage(1);
@@ -104,6 +107,15 @@ export default function DashboardAdminPage() {
     const handleSearchChange = (value: string) => {
         setSearchQuery(value);
         setCurrentPage(1);
+    };
+
+    // --- BARU: Fungsi untuk mengubah status user ---
+    const handleStatusChange = (userId: string, newStatus: UserStatus) => {
+        setUsers((prevUsers) =>
+            prevUsers.map((user) =>
+                user.id === userId ? { ...user, status: newStatus } : user
+            )
+        );
     };
 
     // Statistik
@@ -223,13 +235,15 @@ export default function DashboardAdminPage() {
                                         <TableHead className="font-semibold">Status</TableHead>
                                         <TableHead className="font-semibold">Tgl Gabung</TableHead>
                                         <TableHead className="font-semibold">Aktif Terakhir</TableHead>
+                                        {/* --- BARU: Kolom Aksi --- */}
+                                        <TableHead className="font-semibold text-center">Aksi</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {paginatedUsers.length === 0 ? (
                                         <TableRow>
                                             <TableCell
-                                                colSpan={5}
+                                                colSpan={6} // <-- PERUBAHAN: dari 5 ke 6
                                                 className="text-center py-8 text-gray-500"
                                             >
                                                 Tidak ada data yang ditemukan
@@ -250,6 +264,33 @@ export default function DashboardAdminPage() {
                                                 </TableCell>
                                                 <TableCell className="text-gray-600">
                                                     {user.lastActive}
+                                                </TableCell>
+                                                {/* --- BARU: Sel Tombol Aksi --- */}
+                                                <TableCell className="text-center">
+                                                    <div className="flex justify-center gap-2">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="icon"
+                                                            title="Verifikasi (User Baik)"
+                                                            className="h-8 w-8 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            // Nonaktifkan tombol jika statusnya sudah 'good'
+                                                            disabled={user.status === 'good'}
+                                                            onClick={() => handleStatusChange(user.id, 'good')}
+                                                        >
+                                                            <CheckCircle className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="icon"
+                                                            title="Tolak (User Buruk)"
+                                                            className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            // Nonaktifkan tombol jika statusnya sudah 'bad'
+                                                            disabled={user.status === 'bad'}
+                                                            onClick={() => handleStatusChange(user.id, 'bad')}
+                                                        >
+                                                            <XCircle className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
                                                 </TableCell>
                                             </TableRow>
                                         ))
