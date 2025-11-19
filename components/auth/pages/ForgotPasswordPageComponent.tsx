@@ -1,9 +1,11 @@
 "use client"
 
 import React, { useState } from "react";
-import { ArrowRight, Mail } from "lucide-react";
+import { ArrowRight, Loader2, Mail } from "lucide-react";
 import MainLayoutAuth from "../MainLayoutAuth";
 import SectionIlustrationAuth from "../components/SectionIlustration";
+import supabase from "@/lib/db";
+import Swal from "sweetalert2";
 
 export default function ForgotPageComponent() {
     const [formData, setFormData] = useState({
@@ -11,10 +13,38 @@ export default function ForgotPageComponent() {
         password: '',
     });
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const [loading, setLoading] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        // Logika untuk submit form
-        console.log('Form submitted:', formData);
+        setLoading(true);
+
+        const { data, error } = await supabase.auth.resetPasswordForEmail(
+            formData.email,
+            {
+                redirectTo: `${window.location.origin}/reset-password`,
+            }
+        );
+
+        setLoading(false);
+
+        if (error) {
+            console.error(error);
+            Swal.fire({
+                icon: "error",
+                title: "Gagal!",
+                text: error.message,
+                confirmButtonColor: "#2563eb",
+            });
+            return;
+        }
+
+        Swal.fire({
+            icon: "success",
+            title: "Email Terkirim!",
+            text: "Silakan periksa inbox email Anda.",
+            confirmButtonColor: "#2563eb",
+        });
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -72,12 +102,26 @@ export default function ForgotPageComponent() {
                             {/* Tombol Submit (Gaya Asli + Fokus shadcn) */}
                             <button
                                 type="submit"
+                                disabled={loading}
                                 className="group relative w-full inline-flex items-center justify-center bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl font-semibold shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 transition-all hover:scale-[1.02] active:scale-[0.98] overflow-hidden text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                             >
-                                <div className="absolute inset-0 bg-gradient-to-r from-blue-700 to-blue-800 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                {/* Hover Overlay */}
+                                {!loading && (
+                                    <div className="absolute inset-0 bg-gradient-to-r from-blue-700 to-blue-800 opacity-0 hover:opacity-100 transition-opacity"></div>
+                                )}
+
                                 <span className="relative flex items-center justify-center gap-2">
-                                    Kirim Email
-                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                    {loading ? (
+                                        <>
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                            Mengirim...
+                                        </>
+                                    ) : (
+                                        <>
+                                            Kirim Email
+                                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                        </>
+                                    )}
                                 </span>
                             </button>
                         </form>
