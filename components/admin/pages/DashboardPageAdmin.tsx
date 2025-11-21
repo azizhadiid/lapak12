@@ -154,7 +154,7 @@ export default function DashboardAdminPage() {
                     <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-white">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-gray-600">
-                                Total User
+                                Total Pengguna
                             </CardTitle>
                             <Users className="h-4 w-4 text-blue-600" />
                         </CardHeader>
@@ -168,7 +168,7 @@ export default function DashboardAdminPage() {
                     <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 to-white">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-gray-600">
-                                User Baik
+                                Pengguna Baik
                             </CardTitle>
                             <UserCheck className="h-4 w-4 text-emerald-600" />
                         </CardHeader>
@@ -182,7 +182,7 @@ export default function DashboardAdminPage() {
                     <Card className="border-red-200 bg-gradient-to-br from-red-50 to-white">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-gray-600">
-                                User Buruk
+                                Pengguna Buruk
                             </CardTitle>
                             <UserX className="h-4 w-4 text-red-600" />
                         </CardHeader>
@@ -195,9 +195,183 @@ export default function DashboardAdminPage() {
                 {/* Tabel User */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Daftar Pengguna</CardTitle>
+                        <CardTitle>Daftar Pembeli</CardTitle>
                         <CardDescription>
-                            Kelola dan pantau semua pengguna terdaftar
+                            Kelola dan pantau semua akun pembeli terdaftar
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {/* Search & Filter */}
+                        <div className="flex flex-col md:flex-row gap-4 mb-6">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <Input
+                                    placeholder="Cari username atau email..."
+                                    value={searchQuery}
+                                    onChange={(e) => handleSearchChange(e.target.value)}
+                                    className="pl-10"
+                                />
+                            </div>
+                            <Select value={statusFilter} onValueChange={handleFilterChange}>
+                                <SelectTrigger className="w-full md:w-[200px]">
+                                    <SelectValue placeholder="Filter Status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Semua Status</SelectItem>
+                                    <SelectItem value="good">Pengguna Baik</SelectItem>
+                                    <SelectItem value="bad">Pengguna Buruk</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Tabel */}
+                        <div className="rounded-md border overflow-x-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="bg-blue-50/50">
+                                        <TableHead className="font-semibold">Username</TableHead>
+                                        <TableHead className="font-semibold">Email</TableHead>
+                                        <TableHead className="font-semibold">Status</TableHead>
+                                        <TableHead className="font-semibold">Tgl Gabung</TableHead>
+                                        <TableHead className="font-semibold">Aktif Terakhir</TableHead>
+                                        {/* --- BARU: Kolom Aksi --- */}
+                                        <TableHead className="font-semibold text-center">Aksi</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {paginatedUsers.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={6} // <-- PERUBAHAN: dari 5 ke 6
+                                                className="text-center py-8 text-gray-500"
+                                            >
+                                                Tidak ada data yang ditemukan
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        paginatedUsers.map((user) => (
+                                            <TableRow key={user.id} className="hover:bg-blue-50/30">
+                                                <TableCell className="font-medium">
+                                                    {user.username}
+                                                </TableCell>
+                                                <TableCell className="text-gray-600">
+                                                    {user.email}
+                                                </TableCell>
+                                                <TableCell>{getStatusBadge(user.status)}</TableCell>
+                                                <TableCell className="text-gray-600">
+                                                    {user.joinDate}
+                                                </TableCell>
+                                                <TableCell className="text-gray-600">
+                                                    {user.lastActive}
+                                                </TableCell>
+                                                {/* --- BARU: Sel Tombol Aksi --- */}
+                                                <TableCell className="text-center">
+                                                    <div className="flex justify-center gap-2">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="icon"
+                                                            title="Verifikasi (User Baik)"
+                                                            className="h-8 w-8 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            // Nonaktifkan tombol jika statusnya sudah 'good'
+                                                            disabled={user.status === 'good'}
+                                                            onClick={() => handleStatusChange(user.id, 'good')}
+                                                        >
+                                                            <CheckCircle className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="icon"
+                                                            title="Tolak (User Buruk)"
+                                                            className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            // Nonaktifkan tombol jika statusnya sudah 'bad'
+                                                            disabled={user.status === 'bad'}
+                                                            onClick={() => handleStatusChange(user.id, 'bad')}
+                                                        >
+                                                            <XCircle className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+
+                        {/* Pagination */}
+                        {filteredUsers.length > 0 && (
+                            <div className="flex flex-col md:flex-row items-center justify-between mt-4 gap-4">
+                                <p className="text-sm text-gray-600">
+                                    Menampilkan {(currentPage - 1) * itemsPerPage + 1} -{" "}
+                                    {Math.min(currentPage * itemsPerPage, filteredUsers.length)}{" "}
+                                    dari {filteredUsers.length} pengguna
+                                </p>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                        Sebelumnya
+                                    </Button>
+                                    <div className="flex items-center gap-1">
+                                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                            .filter((page) => {
+                                                // Tampilkan halaman saat ini, 1 sebelum, dan 1 sesudah
+                                                return (
+                                                    page === 1 ||
+                                                    page === totalPages ||
+                                                    Math.abs(page - currentPage) <= 1
+                                                );
+                                            })
+                                            .map((page, index, array) => (
+                                                <div key={page} className="flex items-center">
+                                                    {index > 0 && array[index - 1] !== page - 1 && (
+                                                        <span className="px-2 text-gray-400">...</span>
+                                                    )}
+                                                    <Button
+                                                        variant={
+                                                            currentPage === page ? "default" : "outline"
+                                                        }
+                                                        size="sm"
+                                                        onClick={() => setCurrentPage(page)}
+                                                        className={
+                                                            currentPage === page
+                                                                ? "bg-blue-600 hover:bg-blue-700"
+                                                                : ""
+                                                        }
+                                                    >
+                                                        {page}
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setCurrentPage((p) => Math.min(totalPages, p + 1))
+                                        }
+                                        disabled={currentPage === totalPages}
+                                    >
+                                        Selanjutnya
+                                        <ChevronRight className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+
+                {/* Penjual */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Daftar Penjual</CardTitle>
+                        <CardDescription>
+                            Kelola dan pantau semua akun penjual terdaftar
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
