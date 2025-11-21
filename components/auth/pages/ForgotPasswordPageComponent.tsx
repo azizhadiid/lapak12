@@ -4,10 +4,11 @@ import React, { useState } from "react";
 import { ArrowRight, Loader2, Mail } from "lucide-react";
 import MainLayoutAuth from "../MainLayoutAuth";
 import SectionIlustrationAuth from "../components/SectionIlustration";
-import supabase from "@/lib/db";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import Swal from "sweetalert2";
 
 export default function ForgotPageComponent() {
+    const supabase = createClientComponentClient();
     const [formData, setFormData] = useState({
         email: '',
         password: '',
