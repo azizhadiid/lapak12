@@ -79,6 +79,8 @@ export default function DashboardAdminPage() {
     const [sellerUsers, setSellerUsers] = useState<AdminUser[]>([]);
     const [totalUsers, setTotalUsers] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
+    // --- State BARU untuk Notifikasi/Alert ---
+    const [alertMessage, setAlertMessage] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
 
     // --- State untuk Pembeli (Buyer) ---
     const [buyerSearchQuery, setBuyerSearchQuery] = useState("");
@@ -170,26 +172,47 @@ export default function DashboardAdminPage() {
     // --- BARU: Fungsi untuk mengubah status user (Diperlukan nanti) ---
     // Fungsi ini akan memerlukan logika tambahan untuk meng-update
     // status di tabel profile_pembeli atau profile_penjual yang relevan
-    const handleStatusChange = (userId: string, role: UserRole, newStatus: UserStatus) => {
-        console.log(`Mengubah status user ${userId} (${role}) menjadi ${newStatus}`);
+    const handleStatusChange = async (userId: string, role: UserRole, newStatus: UserStatus) => {
+        // 1. Tentukan nama fungsi RPC yang akan dipanggil
+        const rpcName = 'update_user_status';
 
-        // Logika update ke Supabase (DELETE, INSERT, atau UPDATE pada profile_pembeli/penjual)
-        // ...
+        // 2. Lakukan panggilan ke Supabase RPC (Function Call)
+        // Panggilan ini akan dieksekusi dengan hak akses tinggi (SECURITY DEFINER)
+        const { error } = await supabase.rpc(rpcName, {
+            p_user_id: userId,
+            p_role: role,
+            p_new_status: newStatus,
+        });
 
-        // Simulasi update state lokal
-        if (role === 'pembeli') {
-            setBuyerUsers(prevUsers =>
-                prevUsers.map(user =>
-                    user.id === userId ? { ...user, status: newStatus } : user
-                )
-            );
-        } else if (role === 'penjual') {
-            setSellerUsers(prevUsers =>
-                prevUsers.map(user =>
-                    user.id === userId ? { ...user, status: newStatus } : user
-                )
-            );
+        if (error) {
+            console.error(`Gagal mengubah status ${role} ${userId} melalui RPC:`, error);
+            setAlertMessage({
+                message: `Gagal mengubah status ${role} ${userId}: ${error.message}`,
+                type: 'error'
+            });
+            // Tidak perlu return di sini, lanjutkan dengan update UI jika error tidak kritis
+            return;
         }
+
+        // 3. Jika berhasil, update state lokal dan tampilkan notifikasi
+        setAlertMessage({
+            message: `Status ${role} ${userId} berhasil diubah menjadi ${newStatus === 'good' ? 'Baik' : 'Buruk'}.`,
+            type: 'success'
+        });
+
+        const updateFn = (prevUsers: AdminUser[]) =>
+            prevUsers.map(user =>
+                user.id === userId ? { ...user, status: newStatus } : user
+            );
+
+        if (role === 'pembeli') {
+            setBuyerUsers(updateFn);
+        } else {
+            setSellerUsers(updateFn);
+        }
+
+        // Hapus notifikasi setelah 5 detik
+        setTimeout(() => setAlertMessage(null), 5000);
     };
 
     // Fungsi handler filter/search Pembeli
@@ -301,6 +324,23 @@ export default function DashboardAdminPage() {
 
     return (
         <MainLayoutAdmin>
+            {/* --- Komponen Alert/Notifikasi (BARU) --- */}
+            {alertMessage && (
+                <div
+                    className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-xl text-white ${alertMessage.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`}
+                    role="alert"
+                >
+                    {alertMessage.message}
+                    <button
+                        onClick={() => setAlertMessage(null)}
+                        className="ml-4 font-bold"
+                    >
+                        &times;
+                    </button>
+                </div>
+            )}
+            {/* --- End Komponen Alert --- */}
+
             <div className="space-y-6">
                 {/* Header */}
                 <div>
@@ -393,8 +433,6 @@ export default function DashboardAdminPage() {
                                         <TableHead className="font-semibold">Username</TableHead>
                                         <TableHead className="font-semibold">Email</TableHead>
                                         <TableHead className="font-semibold">Status</TableHead>
-                                        <TableHead className="font-semibold">Tgl Gabung</TableHead>
-                                        <TableHead className="font-semibold">Aktif Terakhir</TableHead>
                                         <TableHead className="font-semibold text-center">Aksi</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -418,12 +456,6 @@ export default function DashboardAdminPage() {
                                                     {user.email}
                                                 </TableCell>
                                                 <TableCell>{getStatusBadge(user.status)}</TableCell>
-                                                <TableCell className="text-gray-600">
-                                                    {user.joinDate}
-                                                </TableCell>
-                                                <TableCell className="text-gray-600">
-                                                    {user.lastActive}
-                                                </TableCell>
                                                 {/* Sel Tombol Aksi Pembeli */}
                                                 <TableCell className="text-center">
                                                     <div className="flex justify-center gap-2">
@@ -510,8 +542,6 @@ export default function DashboardAdminPage() {
                                         <TableHead className="font-semibold">Username</TableHead>
                                         <TableHead className="font-semibold">Email</TableHead>
                                         <TableHead className="font-semibold">Status</TableHead>
-                                        <TableHead className="font-semibold">Tgl Gabung</TableHead>
-                                        <TableHead className="font-semibold">Aktif Terakhir</TableHead>
                                         <TableHead className="font-semibold text-center">Aksi</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -535,12 +565,6 @@ export default function DashboardAdminPage() {
                                                     {user.email}
                                                 </TableCell>
                                                 <TableCell>{getStatusBadge(user.status)}</TableCell>
-                                                <TableCell className="text-gray-600">
-                                                    {user.joinDate}
-                                                </TableCell>
-                                                <TableCell className="text-gray-600">
-                                                    {user.lastActive}
-                                                </TableCell>
                                                 {/* Sel Tombol Aksi Penjual */}
                                                 <TableCell className="text-center">
                                                     <div className="flex justify-center gap-2">

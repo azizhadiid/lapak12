@@ -197,6 +197,106 @@ USING (
 );
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
+/////////////////////////////////////////////////////////////////////////////////////////////
+-- Read Dashboard admin
+
+-- ///RLS ADMIN DASHBOARD
+SELECT auth.uid() AS user_id, public.get_my_role();
+
+-- 1. Buat fungsi untuk mengupdate status pengguna
+CREATE OR REPLACE FUNCTION public.update_user_status(
+    p_user_id UUID,
+    p_role TEXT,
+    p_new_status TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER -- PENTING: Menjalankan fungsi dengan hak akses tertinggi (bypass RLS)
+AS $$
+DECLARE
+    target_table TEXT;
+    status_value BOOLEAN;
+BEGIN
+    -- Tentukan tabel dan nilai boolean (Sesuai logika Anda)
+    IF p_role = 'pembeli' THEN
+        target_table := 'profile_pembeli';
+        -- Pembeli: 'good' = TRUE, 'bad' = FALSE
+        status_value := (p_new_status = 'good');
+    ELSIF p_role = 'penjual' THEN
+        target_table := 'profile_penjual';
+        -- Penjual: 'good' = FALSE, 'bad' = TRUE
+        status_value := (p_new_status != 'good');
+    ELSE
+        RAISE EXCEPTION 'Role tidak valid: %', p_role;
+    END IF;
+
+    -- Lakukan update dinamis (bypass RLS karena SECURITY DEFINER)
+    EXECUTE format('
+        UPDATE public.%I
+        SET status = %L, updated_at = now()
+        WHERE id = %L;
+    ', target_table, status_value, p_user_id);
+
+END;
+$$;
+
+-- 2. Berikan hak eksekusi kepada pengguna yang telah terautentikasi (authenticated)
+GRANT EXECUTE ON FUNCTION public.update_user_status(uuid, text, text) TO authenticated;
+
+CREATE POLICY "Admin bisa UPDATE semua profil pembeli"
+ON public.profile_pembeli
+FOR UPDATE
+USING (
+  public.get_my_role() = 'admin'
+)
+WITH CHECK (
+  public.get_my_role() = 'admin'
+);
+
+CREATE POLICY "Admin bisa UPDATE semua profil penjual"
+ON public.profile_penjual
+FOR UPDATE
+USING (
+  public.get_my_role() = 'admin'
+)
+WITH CHECK (
+  public.get_my_role() = 'admin'
+);
+
+-- Contoh Konsep VIEW untuk menggabungkan data Pembeli dan Penjual
+-- (Ini harus dikerjakan di editor SQL Supabase)
+
+CREATE VIEW public.admin_dashboard_users AS
+SELECT
+    u.id,
+    u.username,
+    u.email,
+    u.role,
+    u.created_at AS join_date,
+    -- Logika Status Pembeli
+    CASE
+        WHEN u.role = 'pembeli' AND pp.id IS NOT NULL THEN
+            CASE
+                WHEN pp.status = TRUE THEN 'good'
+                ELSE 'bad'
+            END
+        -- Logika Status Penjual
+        WHEN u.role = 'penjual' AND ps.id IS NOT NULL THEN
+            CASE
+                WHEN ps.status = FALSE THEN 'good' -- Status Baik = FALSE
+                ELSE 'bad'                       -- Status Buruk = TRUE
+            END
+        ELSE 'neutral'
+    END AS status
+    -- Kolom lain yang diperlukan
+FROM
+    public.users u
+LEFT JOIN
+    public.profile_pembeli pp ON u.id = pp.id AND u.role = 'pembeli'
+LEFT JOIN
+    public.profile_penjual ps ON u.id = ps.id AND u.role = 'penjual';
+////////////////////////////////////////////////////////////////////////////
+
 
 -- /////////////////////////////////////////////////////////////////////////////////
 -- Bagian Profile Pembeli
