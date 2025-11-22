@@ -315,12 +315,19 @@ export default function DashboardAdminPage() {
     if (isLoading) {
         return (
             <MainLayoutAdmin>
-                <div className="text-center py-20 text-blue-600">
-                    <p>Memuat data pengguna...</p>
+                <div className="flex flex-col items-center justify-center h-screen bg-white">
+                    {/* Spinner */}
+                    <div className="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+
+                    {/* Text with animation */}
+                    <p className="mt-6 text-blue-600 text-lg animate-pulse">
+                        Memuat data pengguna...
+                    </p>
                 </div>
             </MainLayoutAdmin>
-        )
+        );
     }
+
 
     return (
         <MainLayoutAdmin>
