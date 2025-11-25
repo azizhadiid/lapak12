@@ -1,23 +1,14 @@
 "use client"
-
-import React, { useState } from 'react';
-import {
-    Apple,
-    GlassWater,
-    Cookie,
-    Home,
-    ChevronLeft,
-    ChevronRight,
-} from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import MainLayoutLanding from '../layout/MainLayoutLanding';
-import Link from 'next/link';
-import ProductCard from '../components/ProductCard';
+import { Badge } from "@/components/ui/badge";
+import { Apple, ChevronLeft, ChevronRight, Cookie, GlassWater, Home } from "lucide-react";
+import { useState } from "react";
+import MainLayoutPembeli from "../MainLayoutPembeli";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import ProductCard from "../components/ProductCard";
+import { Input } from "@/components/ui/input";
 
 
-// Data Mockup
 const mockCategories = [
     { name: 'Makanan', icon: <Apple className="h-10 w-10 text-blue-600" />, bgColor: 'bg-blue-50' },
     { name: 'Minuman', icon: <GlassWater className="h-10 w-10 text-green-600" />, bgColor: 'bg-green-50' },
@@ -36,8 +27,9 @@ const mockProducts = [
     { id: 8, name: 'Kecap Sedaap', price: 'Rp 21K', img: 'https://placehold.co/300x300/1F2937/FFFFFF?text=Kecap' },
 ];
 
-// Komponen Utama Aplikasi
-export default function LandingPagePembeli() {
+
+
+export default function HomePagePembeli() {
     const [activeTab, setActiveTab] = useState('terbaru');
 
     const scrollCarousel = (direction: 'left' | 'right') => {
@@ -49,9 +41,9 @@ export default function LandingPagePembeli() {
     };
 
     return (
-        <MainLayoutLanding>
+        <MainLayoutPembeli>
             {/* Hero Section */}
-            <section className="bg-white w-full">
+            <section className="bg-white rounded-lg shadow-lg">
                 <div className="container mx-auto grid max-w-7xl grid-cols-1 gap-8 px-4 py-16 sm:px-6 md:grid-cols-2 lg:px-8 lg:py-24">
                     <div className="flex flex-col justify-center">
                         <Badge variant="outline" className="w-fit">E-Commerce untuk RT 12</Badge>
@@ -65,7 +57,7 @@ export default function LandingPagePembeli() {
                         </p>
                         <div className="mt-10 flex flex-col gap-4 sm:flex-row">
                             <Button size="lg" className='bg-blue-600 hover:bg-blue-700' asChild>
-                                <Link href="/product">Mulai Belanja</Link>
+                                <Link href="/login">Mulai Belanja</Link>
                             </Button>
                             <Button
                                 size="lg"
@@ -189,7 +181,7 @@ export default function LandingPagePembeli() {
             </section>
 
             {/* Newsletter Section */}
-            <section className="bg-white py-16 lg:py-24">
+            <section className="bg-white rounded-lg shadow-lg py-16 lg:py-24">
                 <div className="container mx-auto max-w-2xl px-4 text-center sm:px-6 lg:px-8">
                     <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
                         Jangan Lewatkan Info Terbaru
@@ -208,6 +200,6 @@ export default function LandingPagePembeli() {
                     </form>
                 </div>
             </section>
-        </MainLayoutLanding>
+        </MainLayoutPembeli>
     );
 }
