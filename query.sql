@@ -120,6 +120,17 @@ RENAME COLUMN jenis_olahan TO jenis_product;
 
 ALTER TABLE public.products
 ALTER COLUMN harga TYPE NUMERIC(10, 2);
+
+////////////////////////////////////////////////////////////////////////////////
+-- Polisi Produk (Mengizinkan semua user yang authenticated untuk melihat)
+////////////////////////////////////////////////////////////////////////////////
+CREATE POLICY "Semua user authenticated bisa melihat produk"
+ON public.products
+FOR SELECT
+USING (
+  -- Menggunakan auth.uid() IS NOT NULL berarti SEMUA pengguna yang sudah login
+  auth.uid() IS NOT NULL
+);
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 
