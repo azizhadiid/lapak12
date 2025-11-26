@@ -11,7 +11,7 @@ export default function NavbarPembeli() {
 
     const navItems = [
         { icon: House, label: 'Beranda', href: '/home' },
-        { icon: PackageSearch, label: 'Product', href: '/product' },
+        { icon: PackageSearch, label: 'Produk', href: '/product' },
         { icon: ShoppingBasket, label: 'Keranjang', href: '/keranjang' },
         { icon: User, label: 'Profile', href: '/profile' },
     ];
