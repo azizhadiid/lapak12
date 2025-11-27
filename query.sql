@@ -61,31 +61,26 @@ create index if not exists users_email_idx on public.users (email);
 create index if not exists users_role_idx on public.users (role);
 -- /////////////////////////////////////////////////////////////////////////////////////
 
-UPDATE users
-SET role = 'admin'
-WHERE email = 'azizalhadiid88@gmail.com';
-
-
 -- /////////////////////////////////////////////////////////////////////////////////
 -- Bagian Produk
 -- /////////////////////////////////////////////////////////////////////////////////
-
--- 1. Buat tabel 'products'
-CREATE TABLE IF NOT EXISTS public.products (
-    -- Primary Key untuk tabel products
+-- 1. Buat ulang tabel 'produk'
+CREATE TABLE IF NOT EXISTS public.produk (
+    -- Primary Key untuk tabel produk
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
 
-    -- Foreign Key yang menghubungkan ke tabel 'users'
+    -- Foreign Key BARU yang menghubungkan ke tabel 'profile_penjual'
     -- Ini adalah relasi intinya.
-    -- 'on delete cascade' berarti: jika user dihapus, semua produknya juga ikut terhapus.
-    user_id uuid REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+    -- 'on delete cascade' berarti: jika profile_penjual dihapus, semua produknya juga ikut terhapus.
+    penjual_id uuid REFERENCES public.profile_penjual(id) ON DELETE CASCADE NOT NULL,
 
-    -- Kolom data produk sesuai gambar Anda
+    -- Kolom data produk
     nama_produk TEXT NOT NULL,
-    jenis_olahan TEXT,
+    jenis_produk TEXT, -- Nama kolom sudah diubah di skema awal Anda
     deskripsi TEXT,
+    keunggulan_produk TEXT,
     stok INT DEFAULT 0 CHECK (stok >= 0),
-    harga INT DEFAULT 0 CHECK (harga >= 0), -- Gunakan 'numeric' jika butuh desimal
+    harga NUMERIC(10, 2) DEFAULT 0 CHECK (harga >= 0), -- Menggunakan NUMERIC seperti skema akhir Anda
     gambar TEXT, -- Ini akan berisi URL ke file di Supabase Storage
 
     -- Timestamps
@@ -93,44 +88,15 @@ CREATE TABLE IF NOT EXISTS public.products (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 2. (Opsional tapi SANGAT DISARANKAN) Buat trigger untuk auto-update 'updated_at'
--- Fungsi ini akan dijalankan setiap kali ada baris yang di-UPDATE
-CREATE OR REPLACE FUNCTION public.handle_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- 2. Tambahkan index untuk optimasi JOIN
+CREATE INDEX IF NOT EXISTS produk_penjual_id_idx ON public.produk (penjual_id);
 
--- Terapkan trigger ke tabel 'products'
--- Setiap kali ada "UPDATE" di tabel 'products', jalankan fungsi 'handle_updated_at'
+-- 3. Terapkan trigger untuk auto-update 'updated_at' (menggunakan fungsi yang sudah ada)
 CREATE TRIGGER on_barang_updated
-BEFORE UPDATE ON public.products
+BEFORE UPDATE ON public.produk
 FOR EACH ROW
 EXECUTE PROCEDURE public.handle_updated_at();
 
-
--- 3. (WAJIB di Supabase) Aktifkan Row Level Security (RLS)
--- Ini PENTING agar data Anda aman
-ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
-
-ALTER TABLE public.products
-RENAME COLUMN jenis_olahan TO jenis_product;
-
-ALTER TABLE public.products
-ALTER COLUMN harga TYPE NUMERIC(10, 2);
-
-////////////////////////////////////////////////////////////////////////////////
--- Polisi Produk (Mengizinkan semua user yang authenticated untuk melihat)
-////////////////////////////////////////////////////////////////////////////////
-CREATE POLICY "Semua user authenticated bisa melihat produk"
-ON public.products
-FOR SELECT
-USING (
-  -- Menggunakan auth.uid() IS NOT NULL berarti SEMUA pengguna yang sudah login
-  auth.uid() IS NOT NULL
-);
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 

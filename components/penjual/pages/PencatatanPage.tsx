@@ -14,7 +14,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, Calendar, ShoppingBag, Wallet } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Penjualan } from "@/lib/types/pencatatan";
 import Link from "next/link";
@@ -167,26 +167,33 @@ export default function PencatatanPageComponent() {
 
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card>
-                        <CardContent className="pt-6">
+                    <Card className="rounded-2xl shadow-sm border border-gray-100">
+                        <CardContent className="p-6 flex flex-col items-center text-center">
+                            <ShoppingBag className="h-8 w-8 text-blue-500 mb-3" />
                             <div className="text-sm font-medium text-gray-500">Total Penjualan</div>
-                            <div className="text-2xl font-bold text-gray-900 mt-2">
+                            <div className="text-3xl font-semibold text-gray-900 mt-2">
                                 {pencatatan.length}
                             </div>
                         </CardContent>
                     </Card>
-                    <Card>
-                        <CardContent className="pt-6">
+
+                    <Card className="rounded-2xl shadow-sm border border-gray-100">
+                        <CardContent className="p-6 flex flex-col items-center text-center">
+                            <Wallet className="h-8 w-8 text-green-600 mb-3" />
                             <div className="text-sm font-medium text-gray-500">Total Pendapatan</div>
-                            <div className="text-2xl font-bold text-green-600 mt-2">
-                                {formatCurrency(pencatatan.reduce((sum, item) => sum + item.total_harga, 0))}
+                            <div className="text-3xl font-semibold text-green-600 mt-2">
+                                {formatCurrency(
+                                    pencatatan.reduce((sum, item) => sum + item.total_harga, 0)
+                                )}
                             </div>
                         </CardContent>
                     </Card>
-                    <Card>
-                        <CardContent className="pt-6">
+
+                    <Card className="rounded-2xl shadow-sm border border-gray-100">
+                        <CardContent className="p-6 flex flex-col items-center text-center">
+                            <Calendar className="h-8 w-8 text-blue-600 mb-3" />
                             <div className="text-sm font-medium text-gray-500">Bulan Ini</div>
-                            <div className="text-2xl font-bold text-blue-600 mt-2">
+                            <div className="text-3xl font-semibold text-blue-600 mt-2">
                                 {
                                     pencatatan.filter(
                                         (item) =>
@@ -199,8 +206,9 @@ export default function PencatatanPageComponent() {
                     </Card>
                 </div>
 
+
                 {/* Search and Add Button */}
-                <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+                <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-white p-4 rounded-lg shadow">
                     <div className="relative w-full sm:w-96">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                         <Input
@@ -222,6 +230,7 @@ export default function PencatatanPageComponent() {
                         Tambah Pencatatan
                     </Button>
                 </div>
+
 
                 {/* Table */}
                 <Card>
