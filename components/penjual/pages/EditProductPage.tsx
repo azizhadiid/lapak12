@@ -210,7 +210,7 @@ export default function EditProductTable() {
     return (
         <MainLayoutPenjual>
             {/* PERBAIKAN #1: TINGGI LAYER */}
-            <div className="flex-1 flex flex-col p-4 md:p-8">
+            <div className="flex-1 flex flex-col p-4 md:p-8 mb-16">
 
                 {/* AlertDialog (tidak berubah, posisi sudah benar) */}
                 <AlertDialog open={!!productToDelete} onOpenChange={(isOpen) => !isOpen && setProductToDelete(null)}>
