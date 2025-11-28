@@ -97,6 +97,73 @@ BEFORE UPDATE ON public.produk
 FOR EACH ROW
 EXECUTE PROCEDURE public.handle_updated_at();
 
+-- RLS Produk
+-- 1. Aktifkan Row Level Security (RLS)
+ALTER TABLE public.produk ENABLE ROW LEVEL SECURITY;
+
+-- 2. Kebijakan untuk MELIHAT (SELECT)
+CREATE POLICY "Semua user authenticated bisa melihat produk"
+ON public.produk
+FOR SELECT
+USING (
+  auth.uid() IS NOT NULL
+);
+
+-- 3. Kebijakan untuk MEMBUAT (INSERT)
+CREATE POLICY "Penjual bisa MEMBUAT produk sendiri"
+ON public.produk
+FOR INSERT
+WITH CHECK (
+ auth.uid() = penjual_id AND
+ public.get_my_role() = 'penjual' AND
+ EXISTS (SELECT 1 FROM public.profile_penjual WHERE id = auth.uid()) -- Tambahan cek agar lebih aman
+);
+
+-- 4. Kebijakan untuk MENGUPDATE (UPDATE)
+CREATE POLICY "Penjual bisa MENGUPDATE produk sendiri"
+ON public.produk
+FOR UPDATE
+USING (
+ auth.uid() = penjual_id AND
+ public.get_my_role() = 'penjual'
+)
+WITH CHECK (
+ auth.uid() = penjual_id
+);
+
+-- 5. Kebijakan untuk MENGHAPUS (DELETE)
+CREATE POLICY "Penjual bisa MENGHAPUS produk sendiri"
+ON public.produk
+FOR DELETE
+USING (
+ auth.uid() = penjual_id AND
+ public.get_my_role() = 'penjual'
+);
+
+-- 6. Kebijakan INSERT (Upload File)
+CREATE POLICY "Penjual bisa upload produk gambar"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  -- Memastikan bucket_id benar
+  (bucket_id = 'product-images') AND 
+  -- Memastikan user ID cocok dengan folder produk di path products/user_id/file.ext
+  -- Casting dilakukan pada hasil split_part untuk dicocokkan dengan auth.uid() (UUID)
+  (split_part(name, '/', 2)::uuid = auth.uid())
+);
+
+-- 7. Policy SELECT (Melihat File) - Optional jika Anda ingin membatasi, tapi umumnya dibuat publik
+DROP POLICY IF EXISTS "Semua user authenticated bisa melihat produk" ON storage.objects;
+
+CREATE POLICY "Semua bisa melihat gambar produk"
+ON storage.objects
+FOR SELECT
+TO public -- Gunakan public jika ingin diakses tanpa login
+USING (
+  (bucket_id = 'product-images')
+);
+
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -125,7 +192,7 @@ CREATE TABLE IF NOT EXISTS public.profile_penjual (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 2. Buat trigger 'updated_at' (Fungsi ini mungkin sudah ada dari tabel 'products')
+-- 2. Buat trigger 'updated_at' (Fungsi ini mungkin sudah ada dari tabel 'produk')
 -- Anda hanya perlu 'CREATE OR REPLACE FUNCTION' satu kali per database
 CREATE OR REPLACE FUNCTION public.handle_updated_at()
 RETURNS TRIGGER AS $$
