@@ -305,7 +305,6 @@ export default function ProductUploadForm() {
                                                         name="stok"
                                                         type="number"
                                                         placeholder="0"
-                                                        defaultValue={0}
                                                         min={0}
                                                         className="pl-8"
                                                         required

@@ -166,7 +166,7 @@ export default function EditProductTable() {
         try {
             // Hapus data dari tabel
             const { error: dbError } = await supabase
-                .from('products')
+                .from('produk')
                 .delete()
                 .eq('id', productToDelete.id);
             if (dbError) throw new Error(`Gagal hapus data: ${dbError.message}`);
