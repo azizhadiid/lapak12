@@ -33,7 +33,7 @@ import MainLayoutPenjual from '../MainLayoutPenjual';
 type Product = {
     id: string;
     nama_produk: string;
-    jenis_product: string | null;
+    jenis_produk: string | null;
     stok: number | null;
     harga: number | null;
     gambar: string | null;
@@ -99,7 +99,10 @@ export default function EditProductTable() {
                 // 1. Ambil data user
                 const { data: { user } } = await supabase.auth.getUser();
                 if (!user) {
-                    throw new Error("User tidak ditemukan. Silakan login ulang.");
+                    // Jangan error, tapi arahkan untuk login atau tampilkan pesan tanpa data
+                    setErrorMessage("User tidak ditemukan. Silakan login ulang.");
+                    setIsLoading(false);
+                    return;
                 }
 
                 // --- LOGIKA BARU: Pagination ---
@@ -107,17 +110,20 @@ export default function EditProductTable() {
                 const to = from + ITEMS_PER_PAGE - 1;
 
                 // --- LOGIKA BARU: Dynamic Query Builder ---
+                // GANTI: .from('products') -> .from('produk')
                 let dataQuery = supabase
-                    .from('products')
+                    .from('produk')
+                    // GANTI: .eq('user_id', user.id) -> .eq('penjual_id', user.id)
                     .select('*')
-                    .eq('user_id', user.id);
+                    .eq('penjual_id', user.id);
 
+                // GANTI: .from('products') -> .from('produk')
                 let countQuery = supabase
-                    .from('products')
+                    .from('produk')
                     .select('id', { count: 'exact', head: true })
-                    .eq('user_id', user.id);
+                    .eq('penjual_id', user.id); // GANTI: .eq('user_id', user.id)
 
-                // Tambahkan filter search jika ada
+                // Tambahkan filter search jika ada (tetap sama)
                 if (debouncedSearchTerm) {
                     dataQuery = dataQuery.ilike('nama_produk', `%${debouncedSearchTerm}%`);
                     countQuery = countQuery.ilike('nama_produk', `%${debouncedSearchTerm}%`);
@@ -141,13 +147,14 @@ export default function EditProductTable() {
 
             } catch (error) {
                 console.error("Error mengambil produk:", (error as Error).message);
-                setErrorMessage((error as Error).message);
+                setErrorMessage(`Gagal memuat produk: ${(error as Error).message}`);
             } finally {
                 setIsLoading(false);
             }
         }
 
         fetchProducts();
+        // Tambahkan user sebagai dependency untuk handle user log-in/log-out
     }, [supabase, currentPage, debouncedSearchTerm]); // <-- BARU: Re-fetch saat halaman atau search berubah
 
     // --- 4. LOGIKA DELETE (Tetap sama) ---
@@ -322,7 +329,7 @@ export default function EditProductTable() {
                                                         </TableCell>
                                                         <TableCell className="font-medium">{product.nama_produk}</TableCell>
                                                         <TableCell className="hidden lg:table-cell">
-                                                            <Badge variant="secondary">{product.jenis_product || '-'}</Badge>
+                                                            <Badge variant="secondary">{product.jenis_produk || '-'}</Badge>
                                                         </TableCell>
                                                         <TableCell>
                                                             {(product.stok ?? 0) > 0 ? (
