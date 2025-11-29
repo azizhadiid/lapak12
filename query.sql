@@ -164,6 +164,19 @@ USING (
   (bucket_id = 'product-images')
 );
 
+-- Policy untuk Penjual agar bisa melihat dan mengelola profil mereka tetap ada (INSERT/UPDATE/DELETE)
+-- Pastikan ini tetap ada di skema Anda:
+CREATE POLICY "Semua bisa melihat profil penjual"
+ON public.profile_penjual
+FOR SELECT
+USING (true);
+
+CREATE POLICY "Pembeli bisa membaca nama toko dan status"
+ON public.profile_penjual
+FOR SELECT
+TO authenticated, anon
+USING (true);
+
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 
