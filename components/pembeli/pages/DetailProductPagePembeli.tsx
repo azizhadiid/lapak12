@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from 'react';
-import { Star, ShoppingCart, Plus, Minus, Store, ThumbsUp, MessageSquare, Clock, AlertCircle, CheckCircle } from 'lucide-react';
+import { Star, ShoppingCart, Plus, Minus, Store, ThumbsUp, MessageSquare, Clock, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,7 @@ interface ProductData {
     harga: number | string; // Supabase NUMERIC dikembalikan sebagai string
     gambar: string | null;
     deskripsi: string | null;
+    stok: number | null;
     keunggulan_produk: string | null; // String yang dipisahkan koma
     jenis_produk: string | null;
     profile_penjual: {
@@ -118,6 +119,7 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
                     nama_produk,
                     harga,
                     gambar,
+                    stok,
                     deskripsi,
                     keunggulan_produk,
                     jenis_produk,
@@ -150,7 +152,10 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
     if (loading) {
         return (
             <MainLayoutPembeli>
-                <div className="p-10 text-center text-xl">Memuat produk...</div>
+                <div className="w-full flex flex-col items-center justify-center py-20">
+                    <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-gray-600 mt-4">Memuat produk...</p>
+                </div>
             </MainLayoutPembeli>
         );
     }
@@ -188,19 +193,27 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
     return (
         <MainLayoutPembeli>
             <div className="container mx-auto px-4 py-8 max-w-7xl">
+                <button
+                    onClick={() => window.history.back()}
+                    className="flex items-center gap-2 text-gray-700 mb-6 hover:underline"
+                >
+                    <ArrowLeft className="w-5 h-5" />
+                    Kembali
+                </button>
                 {/* Product Section */}
                 <Card className="mb-8 overflow-hidden shadow-lg">
                     <CardContent className="p-0">
                         <div className="grid md:grid-cols-2 gap-8">
                             {/* Product Image */}
                             <div className="p-8 flex items-center justify-center">
-                                <div className="relative w-full max-w-md aspect-square flex items-center justify-center">
+                                <div className="relative w-full h-full max-h-[480px] min-h-[300px] flex items-center justify-center bg-gray-50 rounded-xl overflow-hidden">
                                     <img
                                         src={product.gambar || "/images/nothing.png"}
                                         alt={product.nama_produk}
-                                        className="w-full h-full object-contain drop-shadow-2xl"
+                                        className="w-full h-full object-cover"
                                     />
                                 </div>
+
                             </div>
 
                             {/* Product Info */}
@@ -237,6 +250,11 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
                                     </Badge>
                                 </div>
 
+                                <div className="text-sm text-gray-600 mb-4">
+                                    Stok tersedia: <span className="font-semibold">{product.stok ?? 0}</span>
+                                </div>
+
+
                                 {/* Quantity Selector */}
                                 <div className="mb-6">
                                     <label className="text-sm font-medium text-gray-700 mb-2 block">Kuantitas</label>
@@ -261,8 +279,8 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
                                 </div>
 
                                 {/* Action Buttons */}
-                                <div className="flex flex-col sm:flex-row gap-3">
-                                    <Button variant="outline" className="flex-1" size="lg">
+                                <div className="flex flex-col md:flex-row gap-4 mt-6 w-full">
+                                    <Button variant="outline" className="flex-1 py-4 text-lg" size="lg">
                                         Tambah ke Keranjang
                                     </Button>
                                     <Button className="flex-1 bg-blue-600 hover:bg-blue-700" size="lg">
