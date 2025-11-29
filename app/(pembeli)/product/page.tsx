@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 // Ini adalah Server Component (tanpa "use client")
-export default function HomePage() {
+export default function ProductPembeli() {
     // Tugasnya hanya me-render Client Component
     return <ProductPagePembeli />;
 }

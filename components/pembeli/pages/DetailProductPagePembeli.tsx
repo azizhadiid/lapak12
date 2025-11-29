@@ -1,13 +1,14 @@
 "use client"
 
-import React, { useState } from 'react';
-import { Star, ShoppingCart, Plus, Minus, Store, ThumbsUp, MessageSquare, Clock } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Star, ShoppingCart, Plus, Minus, Store, ThumbsUp, MessageSquare, Clock, AlertCircle, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import MainLayoutPembeli from "../MainLayoutPembeli";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 interface Comment {
     id: number;
@@ -17,7 +18,29 @@ interface Comment {
     text: string;
 }
 
-export default function DetailProductPembeli() {
+// Interface untuk data produk yang lebih jelas
+interface ProductData {
+    id: string;
+    nama_produk: string;
+    harga: number | string; // Supabase NUMERIC dikembalikan sebagai string
+    gambar: string | null;
+    deskripsi: string | null;
+    keunggulan_produk: string | null; // String yang dipisahkan koma
+    jenis_produk: string | null;
+    profile_penjual: {
+        store_name: string | null;
+        status: boolean; // false = Tidak Direkomendasikan
+    } | null;
+}
+
+export default function DetailProductPembeli({ params }: { params: { id: string } }) {
+    const supabase = createClientComponentClient();
+
+    // PRODUCT DATA
+    const [product, setProduct] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+
+    // COMMENT / RATING SECTION
     const [quantity, setQuantity] = useState<number>(1);
     const [comment, setComment] = useState<string>('');
     const [rating, setRating] = useState<number>(0);
@@ -75,6 +98,93 @@ export default function DetailProductPembeli() {
         );
     };
 
+    // FETCH PRODUCT
+    useEffect(() => {
+        async function fetchProduct() {
+            // Pastikan Anda telah mengimplementasikan get_my_role() dan RLS di Supabase
+            // Jika Anda belum login, query ini mungkin gagal karena RLS.
+
+            if (!params.id) {
+                console.error("ID Produk tidak ditemukan di params.");
+                setLoading(false);
+                setProduct(null); // Penting agar pesan error "Produk tidak ditemukan" muncul
+                return;
+            }
+
+            const { data, error } = await supabase
+                .from("produk")
+                .select(`
+                    id,
+                    nama_produk,
+                    harga,
+                    gambar,
+                    deskripsi,
+                    keunggulan_produk,
+                    jenis_produk,
+                    profile_penjual:profile_penjual (
+                        store_name, 
+                        status
+                    )
+                `)
+                .eq("id", params.id)
+                .single();
+
+
+            if (error) {
+                console.error("Gagal memuat produk:", error.message);
+                setProduct(null);
+            }
+            // Mengatasi harga yang mungkin berupa string (dari tipe NUMERIC di Supabase)
+            if (data && typeof data.harga === 'string') {
+                setProduct({ ...data, harga: parseFloat(data.harga) });
+            } else {
+                setProduct(data as ProductData | null);
+            }
+
+            setLoading(false);
+        }
+
+        fetchProduct();
+    }, [params.id, supabase]); // Tambahkan supabase ke dependency array
+
+    if (loading) {
+        return (
+            <MainLayoutPembeli>
+                <div className="p-10 text-center text-xl">Memuat produk...</div>
+            </MainLayoutPembeli>
+        );
+    }
+
+    if (!product) {
+        return (
+            <MainLayoutPembeli>
+                {/* Pastikan Anda sudah login, karena RLS produk hanya mengizinkan authenticated user SELECT */}
+                <div className="p-10 text-center text-xl text-red-600">
+                    Produk tidak ditemukan, mungkin ID salah, atau Anda belum login (RLS memblokir akses).
+                </div>
+            </MainLayoutPembeli>
+        );
+    }
+
+    // SPLIT KEUNGGULAN
+    const keunggulan: string[] =
+        product.keunggulan_produk
+            ?.split(",")
+            .map((v: string) => v.trim())
+            .filter((v: string) => v.length > 0) // <--- Tambahkan tipe eksplisit di sini
+        ?? [];
+
+    // FUNGSI UNTUK FORMAT HARGA
+    const formatPrice = (price: number | string | undefined): string => {
+        if (!price) return 'Harga Tidak Tersedia';
+        const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+        // Format Rupiah, membulatkan ke ribuan (k) jika perlu
+        return `Rp ${new Intl.NumberFormat('id-ID', { style: 'decimal' }).format(numPrice)}`;
+    };
+
+    // Tentukan status rekomendasi penjual
+    const isRecommended = product.profile_penjual?.status !== false;
+
     return (
         <MainLayoutPembeli>
             <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -86,8 +196,8 @@ export default function DetailProductPembeli() {
                             <div className="p-8 flex items-center justify-center">
                                 <div className="relative w-full max-w-md aspect-square flex items-center justify-center">
                                     <img
-                                        src="/ilustrasi/shope.png"
-                                        alt="Indomie Mi Goreng"
+                                        src={product.gambar || "/images/nothing.png"}
+                                        alt={product.nama_produk}
                                         className="w-full h-full object-contain drop-shadow-2xl"
                                     />
                                 </div>
@@ -98,20 +208,32 @@ export default function DetailProductPembeli() {
                                 <div className="mb-4">
                                     <Badge variant="secondary" className="mb-2">
                                         <Store className="w-3 h-3 mr-1" />
-                                        Mi Instan
+                                        {product.profile_penjual?.store_name || "Toko Tidak Dikenal"}
                                     </Badge>
-                                    <h1 className="text-4xl font-bold text-gray-900 mb-3">Indomie Mi Goreng</h1>
+                                    <h1 className="text-4xl font-bold text-gray-900 mb-3">{product.nama_produk}</h1>
                                     <div className="flex items-center gap-2 mb-4">
                                         {renderStars(5)}
                                         <span className="text-sm text-gray-600">(5.0) • 247 ulasan</span>
                                     </div>
                                 </div>
 
-                                <div className="mb-6">
+                                {/* <div className="mb-6">
                                     <div className="text-4xl font-bold text-blue-600 mb-2">Rp 3.5<span className="text-2xl">k</span></div>
                                     <Badge className="bg-green-500 hover:bg-green-600">
                                         <ThumbsUp className="w-3 h-3 mr-1" />
                                         Toko Rekomendasi
+                                    </Badge>
+                                </div> */}
+
+                                <div className="mb-6">
+                                    {/* HARGA DINAMIS */}
+                                    <div className="text-4xl font-bold text-blue-600 mb-2">
+                                        {formatPrice(product.harga)}
+                                    </div>
+
+                                    <Badge className={isRecommended ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"}>
+                                        <AlertCircle className="w-3 h-3 mr-1" />
+                                        {isRecommended ? 'Toko Direkomendasikan' : 'Toko Tidak Direkomendasikan'}
                                     </Badge>
                                 </div>
 
@@ -160,35 +282,22 @@ export default function DetailProductPembeli() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <p className="text-gray-700 leading-relaxed">
-                            Indomie Mi Goreng adalah mi instan favorit sepanjang masa dengan cita rasa gurih dan khas Indonesia.
-                            Hadir dengan tekstur mi yang kenyal serta perpaduan bumbu kecap manis, saus sambal, bawang goreng,
-                            dan minyak bumbu yang menggugah selera.
-                        </p>
-                        <p className="text-gray-700 leading-relaxed">
-                            Setiap suapan menghadirkan rasa lezat yang seimbang, manis, asin, pedas, dan aromatik. Mi instan
-                            satu ini praktis disajikan, hanya membutuhkan beberapa menit untuk menjadi hidangan cepat, nikmat,
-                            dan mengenyangkan.
+                            {product.deskripsi || "Tidak ada deskripsi yang tersedia untuk produk ini."}
                         </p>
 
                         <div className="bg-gray-50 p-4 rounded-lg">
                             <h3 className="font-semibold text-gray-900 mb-3">Keunggulan:</h3>
                             <ul className="space-y-2 text-gray-700">
-                                <li className="flex items-start gap-2">
-                                    <span className="text-green-500 mt-1">✓</span>
-                                    <span>Rasa autentik Indomie Mi Goreng yang legendaris</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <span className="text-green-500 mt-1">✓</span>
-                                    <span>Tekstur mi kenyal dan tidak mudah lembek</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <span className="text-green-500 mt-1">✓</span>
-                                    <span>Bumbu lengkap dan mudah disiapkan</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <span className="text-green-500 mt-1">✓</span>
-                                    <span>Cocok untuk berbagai kreasi menu</span>
-                                </li>
+                                {keunggulan.length > 0 ? (
+                                    keunggulan.map((item, index) => (
+                                        <li key={index} className="flex items-start gap-2">
+                                            <span className="text-green-500 mt-1">✓</span>
+                                            <span>{item}</span>
+                                        </li>
+                                    ))
+                                ) : (
+                                    <li className="text-gray-500 italic">Tidak ada keunggulan produk yang dicatat.</li>
+                                )}
                             </ul>
                         </div>
                     </CardContent>

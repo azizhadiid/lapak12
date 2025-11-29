@@ -177,6 +177,15 @@ FOR SELECT
 TO authenticated, anon
 USING (true);
 
+DROP POLICY IF EXISTS "Semua user authenticated bisa melihat produk" ON public.produk;
+-- Ganti kebijakan SELECT yang bermasalah dengan ini:
+CREATE POLICY "Semua user bisa melihat produk"
+ON public.produk
+FOR SELECT
+USING (
+  true
+);
+
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 
