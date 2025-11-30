@@ -495,3 +495,49 @@ ALTER TABLE public.penjualan ENABLE ROW LEVEL SECURITY;
 -- /////////////////////////////////////////////////////////////////////////////////
 -- End Pencatatan Penjual
 -- /////////////////////////////////////////////////////////////////////////////////
+
+-- /////////////////////////////////////////////////////////////////////////////////
+-- Bagian Transaksi Beli Produk
+-- /////////////////////////////////////////////////////////////////////////////////
+
+-- 1. Buat tabel 'beli_produk'
+CREATE TABLE IF NOT EXISTS public.beli_produk (
+    -- Primary Key
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+
+    -- Foreign Key ke tabel users (PEMBELI)
+    -- ON DELETE CASCADE: Jika user dihapus, semua riwayat pembeliannya ikut terhapus.
+    user_id uuid REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+
+    -- Foreign Key ke tabel produk
+    -- ON DELETE RESTRICT: Produk tidak bisa dihapus jika ada riwayat pembeliannya.
+    produk_id uuid REFERENCES public.produk(id) ON DELETE CASCADE NOT NULL,
+
+    -- Kolom data yang diminta
+    jumlah INTEGER NOT NULL CHECK (jumlah > 0),
+    total_harga NUMERIC(10, 2) NOT NULL CHECK (total_harga >= 0),
+
+    -- Timestamp
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 2. Tambahkan index untuk optimasi query (JOIN/WHERE)
+CREATE INDEX IF NOT EXISTS beli_produk_user_id_idx ON public.beli_produk (user_id);
+CREATE INDEX IF NOT EXISTS beli_produk_produk_id_idx ON public.beli_produk (produk_id);
+
+-- 3. Aktifkan Row Level Security (RLS)
+ALTER TABLE public.beli_produk ENABLE ROW LEVEL SECURITY;
+
+-- RLS
+-- Hanya user dengan role 'pembeli' yang bisa membuat catatan pembelian untuk dirinya sendiri.
+CREATE POLICY "Pembeli bisa membuat catatan pembelian sendiri"
+ON public.beli_produk
+FOR INSERT
+WITH CHECK (
+    auth.uid() = user_id AND
+    public.get_my_role() = 'pembeli'
+);
+
+-- /////////////////////////////////////////////////////////////////////////////////
+-- End Transaksi Beli Produk
+-- /////////////////////////////////////////////////////////////////////////////////
