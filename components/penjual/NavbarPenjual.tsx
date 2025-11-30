@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState } from "react";
-import { FileText, LayoutDashboard, LogOut, Menu, Package, Store, User, X } from "lucide-react";
+import { FileText, LayoutDashboard, LogOut, Menu, Package, Store, User, Users, X } from "lucide-react";
 import Link from "next/link"; // <-- Impor Link
 import { usePathname } from "next/navigation"; // <-- Impor usePathname
 
@@ -15,6 +15,7 @@ export default function NavbarPenjual() {
         { icon: Package, label: 'Produk', href: '/penjual/products' },
         { icon: FileText, label: 'Pencatatan', href: '/penjual/pencatatan' },
         { icon: User, label: 'Profil', href: '/penjual/profile' },
+        { icon: Users, label: 'Pembeli', href: '/penjual/pembeli' },
     ];
 
     return (
