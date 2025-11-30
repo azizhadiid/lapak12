@@ -541,3 +541,193 @@ WITH CHECK (
 -- /////////////////////////////////////////////////////////////////////////////////
 -- End Transaksi Beli Produk
 -- /////////////////////////////////////////////////////////////////////////////////
+
+-- /////////////////////////////////////////////////////////////////////////////////
+-- Tabel Keranjang
+-- /////////////////////////////////////////////////////////////////////////////////
+-- /////////////////////////////////////////////////////////////////////////////////
+-- 1. Tabel Utama: keranjang_produk (Relasi 1:1 dengan users)
+-- /////////////////////////////////////////////////////////////////////////////////
+CREATE TABLE IF NOT EXISTS public.keranjang_produk (
+    -- Primary Key DAN Foreign Key ke public.users
+    -- Ini memastikan setiap user hanya punya SATU baris keranjang utama.
+    id uuid PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+
+    -- Kolom data keranjang
+    -- total_harga_keranjang akan dihitung menggunakan Trigger/Function
+    total_harga_keranjang NUMERIC(10, 2) DEFAULT 0.00 CHECK (total_harga_keranjang >= 0),
+
+    -- Timestamp
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Tambahkan trigger untuk auto-update 'updated_at' (gunakan fungsi yang sudah ada)
+CREATE TRIGGER on_keranjang_produk_updated
+BEFORE UPDATE ON public.keranjang_produk
+FOR EACH ROW
+EXECUTE PROCEDURE public.handle_updated_at();
+
+-- 2. Aktifkan Row Level Security (RLS)
+ALTER TABLE public.keranjang_produk ENABLE ROW LEVEL SECURITY;
+
+-- RLS untuk Keranjang Utama
+-- Pembeli hanya bisa melihat dan membuat keranjangnya sendiri
+CREATE POLICY "Pembeli bisa melihat keranjang sendiri"
+ON public.keranjang_produk
+FOR SELECT
+USING (
+    auth.uid() = id AND
+    public.get_my_role() = 'pembeli'
+);
+
+CREATE POLICY "Pembeli bisa membuat keranjang sendiri"
+ON public.keranjang_produk
+FOR INSERT
+WITH CHECK (
+    auth.uid() = id AND
+    public.get_my_role() = 'pembeli'
+);
+
+-- /////////////////////////////////////////////////////////////////////////////////
+-- 2. Tabel Detail Item: keranjang_item (Relasi N:1 ke keranjang_produk)
+-- /////////////////////////////////////////////////////////////////////////////////
+CREATE TABLE IF NOT EXISTS public.keranjang_item (
+    -- Primary Key (bisa juga menggunakan kombinasi FK sebagai PK)
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+
+    -- Foreign Key ke tabel keranjang_produk
+    -- ON DELETE CASCADE: Jika keranjang utama dihapus, semua item di dalamnya ikut terhapus.
+    keranjang_id uuid REFERENCES public.keranjang_produk(id) ON DELETE CASCADE NOT NULL,
+
+    -- Foreign Key ke tabel produk (FK2)
+    produk_id uuid REFERENCES public.produk(id) ON DELETE RESTRICT NOT NULL,
+    
+    -- Kolom data item keranjang
+    jumlah INTEGER NOT NULL CHECK (jumlah > 0),
+
+    -- Pastikan 1 produk hanya muncul 1 kali per keranjang
+    UNIQUE (keranjang_id, produk_id),
+
+    -- Timestamp
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Tambahkan index untuk optimasi JOIN dan WHERE
+CREATE INDEX IF NOT EXISTS keranjang_item_keranjang_id_idx ON public.keranjang_item (keranjang_id);
+CREATE INDEX IF NOT EXISTS keranjang_item_produk_id_idx ON public.keranjang_item (produk_id);
+
+-- 3. Aktifkan Row Level Security (RLS)
+ALTER TABLE public.keranjang_item ENABLE ROW LEVEL SECURITY;
+
+-- RLS untuk Item Keranjang
+-- Pembeli hanya bisa melihat item di keranjangnya
+CREATE POLICY "Pembeli bisa melihat item di keranjang sendiri"
+ON public.keranjang_item
+FOR SELECT
+USING (
+    keranjang_id = auth.uid() AND
+    public.get_my_role() = 'pembeli'
+);
+
+-- /////////////////////////////////////////////////////////////////////////////////
+-- SQL FUNCTION: Menambah/Mengupdate Item ke Keranjang dengan Validasi Toko
+-- /////////////////////////////////////////////////////////////////////////////////
+
+CREATE OR REPLACE FUNCTION public.add_or_update_cart_item(
+    p_user_id UUID,
+    p_produk_id UUID,
+    p_jumlah INTEGER
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER -- Penting: Agar bisa memanipulasi banyak tabel
+SET search_path = public
+AS $$
+DECLARE
+    keranjang_id_var UUID;
+    existing_item_count INTEGER;
+    existing_store_id UUID;
+    new_store_id UUID;
+    new_store_name TEXT;
+    current_store_name TEXT;
+BEGIN
+    -- 1. Ambil ID Penjual (Toko) untuk Produk yang Baru
+    SELECT
+        t1.penjual_id,
+        t2.store_name
+    INTO
+        new_store_id,
+        new_store_name
+    FROM
+        public.produk t1
+    JOIN
+        public.profile_penjual t2 ON t1.penjual_id = t2.id
+    WHERE
+        t1.id = p_produk_id;
+
+    IF new_store_id IS NULL THEN
+        RETURN json_build_object('success', FALSE, 'message', 'Produk tidak valid atau Penjual tidak ditemukan.');
+    END IF;
+
+    -- 2. Cek/Buat Keranjang Utama (keranjang_produk)
+    -- Karena relasinya 1:1, ID keranjang sama dengan ID user
+    keranjang_id_var := p_user_id;
+
+    INSERT INTO public.keranjang_produk (id)
+    VALUES (keranjang_id_var)
+    ON CONFLICT (id) DO NOTHING; -- Jika sudah ada, jangan lakukan apa-apa
+
+    -- 3. Cek apakah Keranjang sudah berisi produk dari Toko lain
+    SELECT
+        COUNT(t1.id),
+        t2.penjual_id
+    INTO
+        existing_item_count,
+        existing_store_id
+    FROM
+        public.keranjang_item t1
+    JOIN
+        public.produk t2 ON t1.produk_id = t2.id
+    WHERE
+        t1.keranjang_id = keranjang_id_var
+    GROUP BY
+        t2.penjual_id
+    LIMIT 1;
+
+    -- Jika keranjang sudah berisi item (existing_item_count > 0)
+    IF existing_item_count IS NOT NULL AND existing_item_count > 0 THEN
+        -- Cek apakah Toko baru sama dengan Toko yang sudah ada
+        IF existing_store_id <> new_store_id THEN
+            -- Ambil nama toko yang sudah ada untuk pesan error
+            SELECT store_name INTO current_store_name
+            FROM public.profile_penjual
+            WHERE id = existing_store_id;
+
+            RETURN json_build_object('success', FALSE, 'message',
+                'Keranjang Anda hanya boleh berisi produk dari satu toko pada satu waktu. Produk saat ini berasal dari toko ' || current_store_name || '.'
+            );
+        END IF;
+    END IF;
+
+    -- 4. Tambah/Update Item ke keranjang_item
+    INSERT INTO public.keranjang_item (keranjang_id, produk_id, jumlah)
+    VALUES (keranjang_id_var, p_produk_id, p_jumlah)
+    ON CONFLICT (keranjang_id, produk_id) DO UPDATE
+    SET
+        jumlah = public.keranjang_item.jumlah + EXCLUDED.jumlah,
+        created_at = now()
+    WHERE public.keranjang_item.keranjang_id = keranjang_id_var
+    AND public.keranjang_item.produk_id = p_produk_id;
+
+    RETURN json_build_object('success', TRUE, 'message', 'Produk berhasil ditambahkan ke keranjang!', 'store_name', new_store_name);
+
+END;
+$$;
+
+-- Berikan hak eksekusi kepada authenticated user
+GRANT EXECUTE ON FUNCTION public.add_or_update_cart_item(uuid, uuid, integer) TO authenticated;
+
+-- /////////////////////////////////////////////////////////////////////////////////
+-- End Tabel Keranjang
+-- /////////////////////////////////////////////////////////////////////////////////

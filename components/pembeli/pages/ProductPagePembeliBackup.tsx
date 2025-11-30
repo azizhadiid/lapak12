@@ -2,14 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 // IMPOR ICON BARU
-import { Search, Eye, ShoppingCart, ChevronLeft, ChevronRight, Utensils, Coffee, Cake, Home, Store, CheckCircle, AlertCircle, ShoppingBasket } from 'lucide-react';
+import { Search, Eye, ShoppingCart, ChevronLeft, ChevronRight, Utensils, Coffee, Cake, Home, Store, CheckCircle, AlertCircle } from 'lucide-react';
 import MainLayoutPembeli from "../MainLayoutPembeli";
 import Link from 'next/link';
 // IMPOR SUPABASE
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useAuth } from '@/hooks/useAuth'; // Asumsi Anda memiliki hook untuk user/session
 
 // Asumsi path untuk gambar pengganti
 const NO_IMAGE_PLACEHOLDER = '/images/nothing.png';
@@ -29,6 +28,7 @@ interface Product {
     } | null;
 }
 
+
 // Helper untuk format harga ke Rupiah
 const formatRupiah = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -40,7 +40,7 @@ const formatRupiah = (amount: number) => {
 
 // --- Kategori Baru (Dengan Lucide Icons & Warna) ---
 const categories = [
-    // ... (Kategori Anda tetap sama)
+    // Ganti 'food' dengan 'makanan' dan 'drinks' dengan 'minuman' (sesuai skema DB)
     { id: 'makanan-berat', name: 'Makanan Berat', icon: Utensils, color: 'bg-red-500' },
     { id: 'makanan-ringan', name: 'Cemilan/Snack', icon: Cake, color: 'bg-yellow-500' },
     { id: 'minuman-kopi', name: 'Minuman Kopi', icon: Coffee, color: 'bg-amber-800' },
@@ -49,8 +49,9 @@ const categories = [
 ];
 
 
-// Komponen ProductCard (Menerima handler sebagai props)
-const ProductCard: React.FC<{ product: Product, onAddToCart: (product: Product) => void }> = ({ product, onAddToCart }) => {
+// FILE: ProductPagePembeli.tsx
+
+const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
     const [imageSrc, setImageSrc] = useState(product.gambar || NO_IMAGE_PLACEHOLDER);
     const storeProfile = product.profile_penjual;
 
@@ -60,7 +61,9 @@ const ProductCard: React.FC<{ product: Product, onAddToCart: (product: Product) 
         }
     };
 
+    // Status FALSE = Good (Rekomendasi)
     const storeName = storeProfile?.store_name || "Toko Tidak Dikenal";
+    const isRecommended = storeProfile ? storeProfile.status === false : false;
 
     return (
         <div className="group min-w-[260px] bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-blue-100">
@@ -111,19 +114,17 @@ const ProductCard: React.FC<{ product: Product, onAddToCart: (product: Product) 
                     </Link>
                     {/* Tombol Add to Cart/Keranjang */}
                     <button
-                        onClick={() => onAddToCart(product)} // Panggil handler dari parent
+                        onClick={() => alert(`Added ${product.nama_produk} to cart!`)}
                         className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-xl text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md"
-                        title="Tambah ke Keranjang"
-                        disabled={product.stok === 0}
+                        title="Add to Cart"
                     >
-                        {product.stok === 0 ? <AlertCircle className="w-5 h-5" /> : <ShoppingCart className="w-5 h-5" />}
+                        <ShoppingCart className="w-5 h-5" />
                     </button>
                 </div>
             </div>
         </div>
     );
 };
-
 
 export default function ProductPagePembeli() {
     const supabase = createClientComponentClient();
@@ -132,70 +133,20 @@ export default function ProductPagePembeli() {
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const [products, setProducts] = useState<Product[]>([]);
+
+    const [products, setProducts] = useState<Product[]>([]); // Data dari DB
     const [isLoading, setIsLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    // State Notifikasi (Menggantikan Alert Sederhana)
-    const [notification, setNotification] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
-
-    // --- LOGIKA ADD TO CART (UTAMA) ---
-    const handleAddToCart = async (product: Product) => {
-        setNotification({ type: null, message: '' }); // Reset notifikasi
-
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (!user) {
-            setNotification({ type: 'error', message: 'Anda harus login untuk menambahkan produk ke keranjang.' });
-            return;
-        }
-
-        if (product.stok === 0) {
-            setNotification({ type: 'error', message: 'Stok produk ini sudah habis.' });
-            return;
-        }
-
-        // Panggil Fungsi PostgreSQL yang telah dibuat
-        const { data, error } = await supabase.rpc('add_or_update_cart_item', {
-            p_user_id: user.id,
-            p_produk_id: product.id,
-            p_jumlah: 1, // Default menambah 1 unit
-        });
-
-        if (error) {
-            console.error("Error adding to cart:", error);
-            setNotification({ type: 'error', message: `Kesalahan pada sistem: ${error.message}` });
-            return;
-        }
-
-        // Response dari fungsi Supabase adalah JSON (data.message, data.success, data.store_name)
-        const result = data as { success: boolean, message: string, store_name?: string };
-
-        if (result.success) {
-            setNotification({
-                type: 'success',
-                message: `Berhasil menambahkan ${product.nama_produk} ke keranjang! Toko: ${result.store_name}`
-            });
-        } else {
-            // Ini akan menangani validasi Toko Berbeda
-            setNotification({
-                type: 'error',
-                message: result.message
-            });
-        }
-
-        // Hilangkan notifikasi setelah 5 detik
-        setTimeout(() => setNotification({ type: null, message: '' }), 5000);
-    };
-
-
-    // --- LOGIKA FETCH DATA DARI SUPABASE --- (tetap sama)
+    // --- LOGIKA FETCH DATA DARI SUPABASE ---
     useEffect(() => {
         async function fetchProducts() {
             setIsLoading(true);
             setErrorMessage(null);
 
+            // Definisikan Query
             let query = supabase
+                // SELECT JOIN: Ambil semua data produk, dan JOIN data store_name & status dari profile_penjual
                 .from('produk')
                 .select(`
                     id, 
@@ -207,13 +158,19 @@ export default function ProductPagePembeli() {
                     profile_penjual:penjual_id (store_name, status)
                 `);
 
+            // --- FILTER KATEGORI ---
             if (selectedCategory !== 'all') {
                 query = query.eq('jenis_produk', selectedCategory);
             }
 
+            // --- FILTER SEARCH ---
             if (searchQuery) {
                 query = query.ilike('nama_produk', `%${searchQuery}%`);
             }
+
+            // --- EKSEKUSI QUERY ---
+            // Karena kita tidak menghitung total_count di client, kita biarkan Supabase mengambil semua yang difilter.
+            // Di produksi, Anda perlu menghitung total count secara terpisah untuk pagination yang akurat.
 
             try {
                 const { data, error } = await query
@@ -221,14 +178,8 @@ export default function ProductPagePembeli() {
 
                 if (error) throw error;
 
-                // Map data untuk memastikan harga dan stok adalah number
-                const mappedData: Product[] = (data ?? []).map(p => ({
-                    ...p,
-                    harga: parseFloat(p.harga as string),
-                    stok: p.stok ?? 0,
-                }));
-
-                setProducts(mappedData);
+                // Set data
+                setProducts((data ?? []) as unknown as Product[]);
 
             } catch (error) {
                 console.error("Error fetching products:", error);
@@ -242,12 +193,14 @@ export default function ProductPagePembeli() {
 
     }, [supabase, selectedCategory, searchQuery]);
 
-    // --- LOGIKA PAGINATION --- (tetap sama)
+    // --- LOGIKA PAGINATION (Menggunakan filteredProducts sekarang diubah menjadi state products) ---
+    // Karena Supabase sudah melakukan filter, kita hanya perlu melakukan slice untuk pagination
     const totalPages = Math.ceil(products.length / PRODUCTS_PER_PAGE);
     const indexOfLastProduct = currentPage * PRODUCTS_PER_PAGE;
     const indexOfFirstProduct = indexOfLastProduct - PRODUCTS_PER_PAGE;
     const currentProducts = products.slice(indexOfFirstProduct, indexOfLastProduct);
 
+    // ... (handlePageChange dan Komponen Pagination tetap sama) ...
     const handlePageChange = (page: number) => {
         if (page > 0 && page <= totalPages) {
             setCurrentPage(page);
@@ -255,8 +208,10 @@ export default function ProductPagePembeli() {
         }
     };
 
+    // Array untuk nomor halaman
     const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
 
+    // Komponen Pagination
     const Pagination = () => (
         <div className="flex justify-center items-center space-x-2 mt-8">
             <button
@@ -293,7 +248,6 @@ export default function ProductPagePembeli() {
     return (
         <MainLayoutPembeli>
             <header className="py-4 md:py-6 mb-8">
-                {/* ... (Konten Header dan Search Bar) ... */}
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h1 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
@@ -303,6 +257,7 @@ export default function ProductPagePembeli() {
                             Mudah menggunakan paltform untuk jual beli pada RT 12.
                         </p>
                     </div>
+                    {/* Ilustrasi Header */}
                     <div className="flex-shrink-0 w-32 md:w-48 h-auto">
                         <img
                             src="/ilustrasi/shopping.png"
@@ -316,6 +271,8 @@ export default function ProductPagePembeli() {
                         />
                     </div>
                 </div>
+
+                {/* Search Bar */}
                 <div className="relative">
                     <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                     <input
@@ -324,7 +281,7 @@ export default function ProductPagePembeli() {
                         value={searchQuery}
                         onChange={(e) => {
                             setSearchQuery(e.target.value);
-                            setCurrentPage(1);
+                            setCurrentPage(1); // Reset ke halaman 1 saat search
                         }}
                         className="w-full pl-12 pr-4 py-3 md:py-4 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm transition-all duration-200"
                     />
@@ -332,7 +289,7 @@ export default function ProductPagePembeli() {
             </header>
 
             <main>
-                {/* Kategori */}
+                {/* Categories */}
                 <section className="mb-8 md:mb-12">
                     <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-4 md:mb-6">Kategori</h2>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">
@@ -347,14 +304,14 @@ export default function ProductPagePembeli() {
                             <div className="text-3xl md:text-4xl mb-2">🛍️</div>
                             <div className="font-semibold text-sm md:text-base">Semua</div>
                         </button>
-                        {/* Tombol Kategori Lain */}
+                        {/* Tombol Kategori Lain (BARU) */}
                         {categories.map((category) => (
                             <button
                                 key={category.id}
                                 onClick={() => { setSelectedCategory(category.id); setCurrentPage(1); }}
                                 className={`flex flex-col items-center justify-center p-4 md:p-6 rounded-2xl transition-all duration-200 min-h-[100px] 
                                     ${selectedCategory === category.id
-                                        ? `${category.color} text-white shadow-lg`
+                                        ? `${category.color} text-white shadow-lg` // WARNA DARI KATEGORI
                                         : 'bg-white hover:bg-blue-50 text-gray-800 shadow-md hover:shadow-lg border border-gray-200'
                                     }`}
                             >
@@ -364,22 +321,6 @@ export default function ProductPagePembeli() {
                         ))}
                     </div>
                 </section>
-
-                {/* Notifikasi / Alert */}
-                {notification.type && (
-                    <Alert
-                        variant={notification.type === 'error' ? 'destructive' : 'default'}
-                        className={`mb-4 ${notification.type === 'success' ? 'bg-green-50 text-green-700 border-green-300' : ''}`}
-                    >
-                        {notification.type === 'success' ? (
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                        ) : (
-                            <AlertCircle className="h-4 w-4" />
-                        )}
-                        <AlertTitle>{notification.type === 'success' ? 'Berhasil!' : 'Gagal!'}</AlertTitle>
-                        <AlertDescription>{notification.message}</AlertDescription>
-                    </Alert>
-                )}
 
                 {/* Products */}
                 <section>
@@ -428,7 +369,6 @@ export default function ProductPagePembeli() {
                                     <ProductCard
                                         key={product.id}
                                         product={product}
-                                        onAddToCart={handleAddToCart} // Pass handler
                                     />
                                 ))}
                             </div>
