@@ -1,360 +1,373 @@
-'use client'
+'use client';
 
-import { useEffect, useState } from 'react'
-import { Search, MoreVertical, Filter, UserCheck, UserX, ChevronLeft, ChevronRight } from 'lucide-react'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-
+import { useState, useMemo, useEffect } from "react";
+// Ganti Layout ke MainLayoutPembeli
+import { Button } from "@/components/ui/button";
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
-import MainLayoutPenjual from '../MainLayoutPenjual'
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import {
+    Search,
+    ChevronLeft,
+    ChevronRight,
+    Users,
+    UserCheck,
+    UserX,
+    CheckCircle,
+    XCircle,
+} from "lucide-react";
+import supabase from "@/lib/db";
+import MainLayoutPenjual from "../MainLayoutPenjual";
 
-interface User {
-    id: number
-    username: string
-    nama: string
-    email: string
-    status: 'active' | 'inactive'
+// --- Tipe data yang direvisi (Hanya fokus pada Pembeli) ---
+type UserStatus = "good" | "bad" | "neutral";
+type UserRole = "pembeli"; // Hanya Pembeli
+
+interface SellerUser {
+    id: string;
+    username: string;
+    email: string;
+    role: UserRole;
+    status: UserStatus;
+    joinDate: string;
+    lastActive: string;
 }
 
-// Data dummy untuk contoh
-const dummyUsers: User[] = [
-    { id: 1, username: 'johndoe', nama: 'John Doe', email: 'john.doe@email.com', status: 'active' },
-    { id: 2, username: 'janesmth', nama: 'Jane Smith', email: 'jane.smith@email.com', status: 'active' },
-    { id: 3, username: 'bobwilson', nama: 'Bob Wilson', email: 'bob.wilson@email.com', status: 'inactive' },
-    { id: 4, username: 'alicejohn', nama: 'Alice Johnson', email: 'alice.j@email.com', status: 'active' },
-    { id: 5, username: 'charliebr', nama: 'Charlie Brown', email: 'charlie.b@email.com', status: 'inactive' },
-    { id: 6, username: 'dianaross', nama: 'Diana Ross', email: 'diana.ross@email.com', status: 'active' },
-    { id: 7, username: 'evandavis', nama: 'Evan Davis', email: 'evan.davis@email.com', status: 'active' },
-    { id: 8, username: 'fionalee', nama: 'Fiona Lee', email: 'fiona.lee@email.com', status: 'inactive' },
-]
+// --- Fungsi Fetch Data Pembeli Saja ---
+const fetchSellerUsers = async () => {
+    // Menggunakan View yang sama, tetapi kita filter di client side 
+    // karena view `admin_dashboard_users` sudah menggabungkan kedua role.
+    const { data, error } = await supabase
+        .from('admin_dashboard_users')
+        .select('*')
+        .eq('role', 'pembeli'); // Filter hanya untuk penjual di sini
 
-export default function AkunPembeliPage() {
-    const [searchQuery, setSearchQuery] = useState('')
-    const [statusFilter, setStatusFilter] = useState('all')
-    const [users, setUsers] = useState<User[]>([])
-    const [isLoading, setIsLoading] = useState(true)
-    const [currentPage, setCurrentPage] = useState(1)
-    const itemsPerPage = 5
+    if (error) {
+        console.error("Error fetching seller data:", error);
+        throw error;
+    }
 
-    // Simulasi loading data
+    return {
+        sellerUsers: data as SellerUser[],
+        totalSellers: data.length,
+    };
+};
+
+export default function ManajemenPenjualPage() {
+    // --- State untuk Data Penjual ---
+    const [sellerUsers, setSellerUsers] = useState<SellerUser[]>([]);
+    const [totalSellers, setTotalSellers] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
+    const [alertMessage, setAlertMessage] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
+
+    // --- State untuk Filter/Pagination Penjual ---
+    const [searchQuery, setSearchQuery] = useState("");
+    const [statusFilter, setStatusFilter] = useState<string>("all");
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+
+    // --- Efek untuk Fetch Data saat komponen dimuat ---
     useEffect(() => {
-        const loadData = async () => {
-            setIsLoading(true)
-            // Simulasi delay loading dari API
-            await new Promise(resolve => setTimeout(resolve, 1500))
-            setUsers(dummyUsers)
-            setIsLoading(false)
+        setIsLoading(true);
+        fetchSellerUsers().then(data => {
+            setSellerUsers(data.sellerUsers);
+            setTotalSellers(data.totalSellers);
+            setIsLoading(false);
+        }).catch(err => {
+            console.error("Gagal memuat data penjual:", err);
+            setIsLoading(false);
+            setAlertMessage({ message: "Gagal memuat data. Periksa koneksi dan hak akses RLS.", type: 'error' });
+        });
+    }, []);
+
+    // --- Logika Status Badge (Tetap sama) ---
+    const getStatusBadge = (status: UserStatus) => {
+        switch (status) {
+            case "good":
+                // Status Baik untuk Penjual (profil.status=FALSE)
+                return <Badge className="bg-emerald-500 hover:bg-emerald-600">Direkomendasikan</Badge>;
+            case "bad":
+                // Status Buruk untuk Penjual (profil.status=TRUE)
+                return <Badge className="bg-red-500 hover:bg-red-600">Tidak Direkomendasikan</Badge>;
+            default:
+                return <Badge variant="secondary">Netral</Badge>;
         }
+    };
 
-        loadData()
-    }, [])
+    // --- Logika Filter dan Search Penjual ---
+    const filteredSellerUsers = useMemo(() => {
+        return sellerUsers.filter((user) => {
+            const matchesSearch =
+                user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                user.email.toLowerCase().includes(searchQuery.toLowerCase());
 
-    // Filter users berdasarkan pencarian dan status
-    const filteredUsers = users.filter(user => {
-        const matchesSearch =
-            user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            user.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            user.email.toLowerCase().includes(searchQuery.toLowerCase())
+            const matchesStatus =
+                statusFilter === "all" || user.status === statusFilter;
 
-        const matchesStatus = statusFilter === 'all' || user.status === statusFilter
+            return matchesSearch && matchesStatus;
+        });
+    }, [sellerUsers, searchQuery, statusFilter]);
 
-        return matchesSearch && matchesStatus
-    })
+    // --- Logika Pagination Penjual ---
+    const totalPages = Math.ceil(filteredSellerUsers.length / itemsPerPage);
+    const paginatedSellerUsers = useMemo(() => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return filteredSellerUsers.slice(startIndex, startIndex + itemsPerPage);
+    }, [filteredSellerUsers, currentPage]);
 
-    // Pagination logic
-    const totalPages = Math.ceil(filteredUsers.length / itemsPerPage)
-    const startIndex = (currentPage - 1) * itemsPerPage
-    const endIndex = startIndex + itemsPerPage
-    const currentUsers = filteredUsers.slice(startIndex, endIndex)
+    // --- Statisik Penjual Saja ---
+    const stats = useMemo(() => {
+        const good = sellerUsers.filter((u) => u.status === "good").length;
+        const bad = sellerUsers.filter((u) => u.status === "bad").length;
 
-    // Reset ke halaman 1 saat filter berubah
-    useEffect(() => {
-        setCurrentPage(1)
-    }, [searchQuery, statusFilter])
+        return { total: totalSellers, good, bad };
+    }, [sellerUsers, totalSellers]);
 
-    const activeCount = users.filter(u => u.status === 'active').length
-    const inactiveCount = users.filter(u => u.status === 'inactive').length
+    // Fungsi handler filter/search Penjual
+    const handleFilterChange = (value: string) => {
+        setStatusFilter(value);
+        setCurrentPage(1);
+    };
 
-    // Loading skeleton component
-    const LoadingSkeleton = () => (
-        <div className="animate-pulse">
-            {/* Stats skeleton */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                {[1, 2, 3].map((i) => (
-                    <div key={i} className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-                        <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
-                        <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+    const handleSearchChange = (value: string) => {
+        setSearchQuery(value);
+        setCurrentPage(1);
+    };
+
+
+    // Fungsi render pagination yang di-reuse
+    const renderPagination = (
+        currentPage: number,
+        totalPages: number,
+        filteredLength: number,
+        setCurrentPage: React.Dispatch<React.SetStateAction<number>>,
+    ) => {
+        if (filteredLength === 0) return null;
+
+        // Logika pagination yang disederhanakan
+        const endIndex = currentPage * itemsPerPage;
+        const startIndex = (currentPage - 1) * itemsPerPage;
+
+        return (
+            <div className="flex flex-col md:flex-row items-center justify-between mt-4 gap-4">
+                <p className="text-sm text-gray-600">
+                    Menampilkan {startIndex + 1} -{" "}
+                    {Math.min(endIndex, filteredLength)}{" "}
+                    dari {filteredLength} penjual
+                </p>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                        Sebelumnya
+                    </Button>
+                    <div className="flex items-center gap-1">
+                        {/* Menampilkan hanya tombol halaman penting */}
+                        {[...Array(totalPages)].map((_, i) => i + 1)
+                            .filter(page => Math.abs(page - currentPage) <= 1 || page === 1 || page === totalPages)
+                            .map((page, index, array) => (
+                                <div key={page} className="flex items-center">
+                                    {index > 0 && array[index - 1] !== page - 1 && (
+                                        <span className="px-2 text-gray-400">...</span>
+                                    )}
+                                    <Button
+                                        variant={currentPage === page ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => setCurrentPage(page)}
+                                        className={currentPage === page ? "bg-blue-600 hover:bg-blue-700" : ""}
+                                    >
+                                        {page}
+                                    </Button>
+                                </div>
+                            ))}
                     </div>
-                ))}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                    >
+                        Selanjutnya
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </div>
             </div>
-
-            {/* Filter skeleton */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-                <div className="h-10 bg-gray-200 rounded"></div>
-            </div>
-
-            {/* Table skeleton */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="h-12 bg-gray-200 rounded mb-3"></div>
-                ))}
-            </div>
-        </div>
-    )
+        );
+    };
 
     if (isLoading) {
         return (
-            <div className="w-full min-h-screen bg-gray-50 p-4 md:p-6 lg:p-8">
-                <div className="max-w-7xl mx-auto">
-                    <div className="mb-6">
-                        <div className="h-8 bg-gray-200 rounded w-48 mb-2 animate-pulse"></div>
-                        <div className="h-4 bg-gray-200 rounded w-64 animate-pulse"></div>
-                    </div>
-                    <LoadingSkeleton />
+            <MainLayoutPenjual>
+                <div className="flex flex-col items-center justify-center h-screen bg-white">
+                    <div className="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="mt-6 text-blue-600 text-lg animate-pulse">
+                        Memuat data penjual...
+                    </p>
                 </div>
-            </div>
-        )
+            </MainLayoutPenjual>
+        );
     }
+
 
     return (
         <MainLayoutPenjual>
-            <div className="max-w-7xl mx-auto">
+            <div className="space-y-6">
                 {/* Header */}
-                <div className="mb-6">
-                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-                        Akun Pembeli
-                    </h1>
-                    <p className="text-gray-600">Kelola dan pantau akun pembeli Anda</p>
+                <div>
+                    <h1 className="text-3xl font-bold text-blue-600">Manajemen Pembeli</h1>
+                    <p className="text-gray-600 mt-1">
+                        Daftar dan status akun pembeli
+                    </p>
                 </div>
 
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600 mb-1">Total Pembeli</p>
-                                <p className="text-2xl font-bold text-gray-900">{users.length}</p>
+                {/* Statistik Cards Pembeli */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-white">
+                        <CardHeader className="flex flex-row items-center justify-between pb-2">
+                            <CardTitle className="text-sm font-medium text-gray-600">
+                                Total Akun Pembeli
+                            </CardTitle>
+                            <Users className="h-4 w-4 text-blue-600" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-blue-600">
+                                {stats.total}
                             </div>
-                            <div className="bg-blue-100 p-3 rounded-lg">
-                                <UserCheck className="w-6 h-6 text-blue-600" />
-                            </div>
-                        </div>
-                    </div>
+                        </CardContent>
+                    </Card>
 
-                    <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600 mb-1">Aktif</p>
-                                <p className="text-2xl font-bold text-green-600">{activeCount}</p>
+                    <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 to-white">
+                        <CardHeader className="flex flex-row items-center justify-between pb-2">
+                            <CardTitle className="text-sm font-medium text-gray-600">
+                                Pembeli Direkomendasikan
+                            </CardTitle>
+                            <UserCheck className="h-4 w-4 text-emerald-600" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-emerald-600">
+                                {stats.good}
                             </div>
-                            <div className="bg-green-100 p-3 rounded-lg">
-                                <UserCheck className="w-6 h-6 text-green-600" />
-                            </div>
-                        </div>
-                    </div>
+                        </CardContent>
+                    </Card>
 
-                    <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600 mb-1">Tidak Aktif</p>
-                                <p className="text-2xl font-bold text-red-600">{inactiveCount}</p>
-                            </div>
-                            <div className="bg-red-100 p-3 rounded-lg">
-                                <UserX className="w-6 h-6 text-red-600" />
-                            </div>
-                        </div>
-                    </div>
+                    <Card className="border-red-200 bg-gradient-to-br from-red-50 to-white">
+                        <CardHeader className="flex flex-row items-center justify-between pb-2">
+                            <CardTitle className="text-sm font-medium text-gray-600">
+                                Pemebli Tidak Direkomendasikan
+                            </CardTitle>
+                            <UserX className="h-4 w-4 text-red-600" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-red-600">{stats.bad}</div>
+                        </CardContent>
+                    </Card>
                 </div>
 
-                {/* Filters and Search */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-                    <div className="flex flex-col md:flex-row gap-4">
-                        <div className="flex-1 relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                            <Input
-                                type="text"
-                                placeholder="Cari username, nama, atau email..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-10"
-                            />
-                        </div>
-                        <div className="flex gap-2">
-                            <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                <SelectTrigger className="w-full md:w-[180px]">
-                                    <Filter className="w-4 h-4 mr-2" />
+                {/* Tabel Pembeli (Seller) */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Daftar Akun Pembeli</CardTitle>
+                        <CardDescription>
+                            Gunakan tombol aksi untuk mengubah status verifikasi Pembeli.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {/* Search & Filter Pembeli */}
+                        <div className="flex flex-col md:flex-row gap-4 mb-6">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <Input
+                                    placeholder="Cari username atau email..."
+                                    value={searchQuery}
+                                    onChange={(e) => handleSearchChange(e.target.value)}
+                                    className="pl-10"
+                                />
+                            </div>
+                            <Select value={statusFilter} onValueChange={handleFilterChange}>
+                                <SelectTrigger className="w-full md:w-[200px]">
                                     <SelectValue placeholder="Filter Status" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">Semua Status</SelectItem>
-                                    <SelectItem value="active">Aktif</SelectItem>
-                                    <SelectItem value="inactive">Tidak Aktif</SelectItem>
+                                    <SelectItem value="good">Direkomendasikan</SelectItem>
+                                    <SelectItem value="bad">Tidak Direkomendasikan</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
-                    </div>
-                </div>
 
-                {/* Table - Desktop View */}
-                <div className="hidden md:block bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead>
-                                <tr className="bg-gray-50 border-b border-gray-200">
-                                    <th className="text-left py-3 px-4 font-semibold text-gray-900">Username</th>
-                                    <th className="text-left py-3 px-4 font-semibold text-gray-900">Nama</th>
-                                    <th className="text-left py-3 px-4 font-semibold text-gray-900">Email</th>
-                                    <th className="text-left py-3 px-4 font-semibold text-gray-900">Status</th>
-                                    <th className="text-right py-3 px-4 font-semibold text-gray-900">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {currentUsers.length > 0 ? (
-                                    currentUsers.map((user) => (
-                                        <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                            <td className="py-3 px-4 font-medium text-gray-900">{user.username}</td>
-                                            <td className="py-3 px-4 text-gray-900">{user.nama}</td>
-                                            <td className="py-3 px-4 text-gray-600">{user.email}</td>
-                                            <td className="py-3 px-4">
-                                                <Badge
-                                                    // variant={user.status === 'active' ? 'default' : 'secondary'} // <-- Dihapus
-                                                    className={user.status === 'active' ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-red-100 text-red-800 hover:bg-red-200'}
-                                                >
-                                                    {user.status === 'active' ? 'Aktif' : 'Tidak Aktif'}
-                                                </Badge>
-                                            </td>
-                                            <td className="py-3 px-4 text-right">
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" size="sm">
-                                                            <MoreVertical className="w-4 h-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-                                                        <DropdownMenuItem>Lihat Detail</DropdownMenuItem>
-                                                        <DropdownMenuItem>Edit</DropdownMenuItem>
-                                                        <DropdownMenuItem className="text-red-600">
-                                                            {user.status === 'active' ? 'Nonaktifkan' : 'Aktifkan'}
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan={5} className="text-center py-8 text-gray-500">
-                                            Tidak ada data pembeli yang ditemukan
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                {/* Pagination */}
-                {filteredUsers.length > itemsPerPage && (
-                    <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
-                        <div className="text-sm text-gray-600">
-                            Menampilkan {startIndex + 1} - {Math.min(endIndex, filteredUsers.length)} dari {filteredUsers.length} data
+                        {/* Tabel Pembeli */}
+                        <div className="rounded-md border overflow-x-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="bg-blue-50/50">
+                                        <TableHead className="font-semibold">Username</TableHead>
+                                        <TableHead className="font-semibold">Email</TableHead>
+                                        <TableHead className="font-semibold">Status</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {paginatedSellerUsers.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={4}
+                                                className="text-center py-8 text-gray-500"
+                                            >
+                                                Tidak ada data Pembeli yang ditemukan
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        paginatedSellerUsers.map((user) => (
+                                            <TableRow key={user.id} className="hover:bg-blue-50/30">
+                                                <TableCell className="font-medium">
+                                                    {user.username}
+                                                </TableCell>
+                                                <TableCell className="text-gray-600">
+                                                    {user.email}
+                                                </TableCell>
+                                                <TableCell>{getStatusBadge(user.status)}</TableCell>
+                                                {/* Sel Tombol Aksi Pembeli */}
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                                disabled={currentPage === 1}
-                                className="disabled:opacity-50"
-                            >
-                                <ChevronLeft className="w-4 h-4 mr-1" />
-                                Sebelumnya
-                            </Button>
 
-                            <div className="flex gap-1">
-                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                                    <Button
-                                        key={page}
-                                        variant={currentPage === page ? "default" : "outline"}
-                                        size="sm"
-                                        onClick={() => setCurrentPage(page)}
-                                        className={`w-10 ${currentPage === page ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
-                                    >
-                                        {page}
-                                    </Button>
-                                ))}
-                            </div>
-
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                                disabled={currentPage === totalPages}
-                                className="disabled:opacity-50"
-                            >
-                                Selanjutnya
-                                <ChevronRight className="w-4 h-4 ml-1" />
-                            </Button>
-                        </div>
-                    </div>
-                )}
-
-                {/* Card View - Mobile */}
-                <div className="md:hidden space-y-4">
-                    {currentUsers.length > 0 ? (
-                        currentUsers.map((user) => (
-                            <div key={user.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                                <div className="flex justify-between items-start mb-3">
-                                    <div className="flex-1">
-                                        <h3 className="font-semibold text-gray-900 mb-1">{user.nama}</h3>
-                                        <p className="text-sm text-gray-600">@{user.username}</p>
-                                    </div>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="sm">
-                                                <MoreVertical className="w-4 h-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuItem>Lihat Detail</DropdownMenuItem>
-                                            <DropdownMenuItem>Edit</DropdownMenuItem>
-                                            <DropdownMenuItem className="text-red-600">
-                                                {user.status === 'active' ? 'Nonaktifkan' : 'Aktifkan'}
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
-                                <div className="space-y-2">
-                                    <p className="text-sm text-gray-600">{user.email}</p>
-                                    <Badge
-                                        variant={user.status === 'active' ? 'default' : 'secondary'}
-                                        className={user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}
-                                    >
-                                        {user.status === 'active' ? 'Aktif' : 'Tidak Aktif'}
-                                    </Badge>
-                                </div>
-                            </div>
-                        ))
-                    ) : (
-                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-                            <p className="text-gray-500">Tidak ada data pembeli yang ditemukan</p>
-                        </div>
-                    )}
-                </div>
+                        {/* Pagination Pembeli */}
+                        {renderPagination(
+                            currentPage,
+                            totalPages,
+                            filteredSellerUsers.length,
+                            setCurrentPage
+                        )}
+                    </CardContent>
+                </Card>
             </div>
         </MainLayoutPenjual>
-    )
+    );
 }

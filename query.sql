@@ -460,6 +460,16 @@ WITH CHECK (
   auth.uid() = id
 );
 
+CREATE POLICY "Penjual bisa melihat semua profile pembeli"
+ON public.profile_pembeli
+FOR SELECT
+USING ( public.get_my_role() = 'penjual' );
+
+CREATE POLICY "Penjual bisa melihat semua users"
+ON public.users
+FOR SELECT
+USING ( public.get_my_role() = 'penjual' );
+
 -- /////////////////////////////////////////////////////////////////////////////////
 -- End Profile profile_pembeli
 -- /////////////////////////////////////////////////////////////////////////////////
