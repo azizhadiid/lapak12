@@ -33,20 +33,28 @@ interface Comment {
 // Interface untuk data produk yang lebih jelas
 interface ProductData {
     id: string;
-    penjual_id: string; // Tambahkan untuk mengambil ID Penjual
+    penjual_id: string;
     nama_produk: string;
-    harga: number; // Sudah diconvert di useEffect
+    harga: number;
     gambar: string | null;
     deskripsi: string | null;
-    stok: number; // Sudah diconvert di useEffect
+    stok: number;
     keunggulan_produk: string | null;
     jenis_produk: string | null;
     profile_penjual: {
         store_name: string | null;
-        phone: string | null; // Tambahkan no HP Penjual
+        phone: string | null;
         status: boolean;
     } | null;
 }
+
+// Interface baru untuk data user yang diambil dari public.users
+interface UserProfile {
+    id: string;
+    username: string;
+    email: string;
+}
+
 
 export default function DetailProductPembeli({ params }: { params: { id: string } }) {
     const supabase = createClientComponentClient();
@@ -56,13 +64,13 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
     const [loading, setLoading] = useState(true);
     const [quantity, setQuantity] = useState<number>(1);
     const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
+    // Kita tetap menggunakan transactionStatus untuk mengelola tampilan dialog
     const [transactionStatus, setTransactionStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
     const [errorMessage, setErrorMessage] = useState<string>('');
-    const [user, setUser] = useState<any>(null); // State untuk menyimpan data user yang sedang login
+    // State baru untuk menyimpan data user dari public.users
+    const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
     // untuk comment
-    // ... (Logika Comment/Rating Anda tetap di sini)
-    // COMMENT / RATING SECTION (tetap seperti di kode asli)
     const [comment, setComment] = useState<string>('');
     const [rating, setRating] = useState<number>(0);
     const [comments, setComments] = useState<Comment[]>([
@@ -87,19 +95,21 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
         }
     };
 
-    // LOGIKA PEMBELIAN
+    // LOGIKA PEMBELIAN (Hanya menampilkan dialog)
     const handleBuyNow = () => {
         if (!product) return;
         if (quantity > product.stok) {
             alert("Stok tidak mencukupi!");
             return;
         }
+        setTransactionStatus('idle'); // Reset status sebelum buka dialog
         setIsDialogOpen(true); // Tampilkan dialog konfirmasi/bill
     };
 
+    // LOGIKA KONFIRMASI (LANGSUNG KE WA, TANPA DB)
     const confirmPayment = async () => {
-        if (!product || !user) {
-            setErrorMessage("Data produk atau pengguna tidak lengkap.");
+        if (!product || !userProfile) {
+            setErrorMessage("Data produk atau profil pengguna tidak lengkap.");
             setTransactionStatus('error');
             return;
         }
@@ -108,58 +118,37 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
         setErrorMessage('');
 
         const total_harga_transaksi = product.harga * quantity;
-
-        // 1. Simpan data ke tabel 'beli_produk'
-        const { error: beliError } = await supabase
-            .from('beli_produk')
-            .insert({
-                user_id: user.id, // ID Pembeli yang sedang login
-                produk_id: product.id,
-                jumlah: quantity,
-                total_harga: total_harga_transaksi,
-            });
-
-        if (beliError) {
-            console.error("Gagal menyimpan transaksi:", beliError);
-            setErrorMessage(`Gagal menyimpan transaksi: ${beliError.message}`);
-            setTransactionStatus('error');
-            return;
-        }
-
-        // 2. Kurangi stok di tabel 'produk'
-        const newStok = product.stok - quantity;
-        const { error: stokError } = await supabase
-            .from('produk')
-            .update({ stok: newStok })
-            .eq('id', product.id);
-
-        if (stokError) {
-            console.error("Gagal mengurangi stok:", stokError);
-            // Anda mungkin ingin menambahkan rollback di sini jika ini adalah aplikasi produksi
-            setErrorMessage(`Transaksi berhasil dicatat, tapi gagal update stok: ${stokError.message}`);
-            setTransactionStatus('error');
-            return;
-        }
-
-        // 3. Arahkan ke WhatsApp
         const waNumber = product.profile_penjual?.phone;
         const storeName = product.profile_penjual?.store_name || "Penjual";
 
         if (waNumber) {
-            const waMessage = `Halo ${storeName}, saya ingin membeli ${quantity} produk ${product.nama_produk} dengan total harga ${formatPrice(total_harga_transaksi)}. Mohon konfirmasi pesanan saya.`;
+            // 1. Susun Pesan WhatsApp dengan data user
+            const waMessage = `
+Halo ${storeName}, saya *${userProfile.username}* (${userProfile.email}) ingin memesan produk:
+------------------------------------------
+Produk: ${product.nama_produk}
+Jumlah: ${quantity}
+Harga Satuan: ${formatPrice(product.harga)}
+Total Harga: ${formatPrice(total_harga_transaksi)}
+------------------------------------------
+Mohon konfirmasi pesanan saya. Terima kasih.
+            `.trim();
+
             const encodedMessage = encodeURIComponent(waMessage);
             const waUrl = `https://wa.me/${waNumber.replace(/\D/g, '')}?text=${encodedMessage}`;
 
-            // Perbarui state produk lokal (stok) dan arahkan ke WA
-            setProduct(prev => prev ? { ...prev, stok: newStok } : null);
+            // 2. Set status sukses dan direct ke WA
             setTransactionStatus('success');
+
             setTimeout(() => {
                 window.open(waUrl, '_blank');
-                setIsDialogOpen(false); // Tutup dialog setelah diarahkan
-            }, 1000); // Beri jeda sedikit untuk melihat status sukses
+                // 3. HILANGKAN ALERT DIALOG (SETELAH DIRECT)
+                setIsDialogOpen(false);
+                setTransactionStatus('idle'); // Reset status untuk next pembelian
+            }, 1000);
 
         } else {
-            setErrorMessage("Nomor telepon penjual tidak ditemukan. Transaksi berhasil dicatat, namun gagal menghubungi penjual.");
+            setErrorMessage("Nomor telepon penjual tidak ditemukan.");
             setTransactionStatus('error');
         }
     };
@@ -169,26 +158,39 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
     useEffect(() => {
         async function fetchData() {
             setLoading(true);
-
-            // Fetch User Session (diperlukan untuk RLS dan data user_id)
             const { data: { session } } = await supabase.auth.getSession();
+
             if (!session) {
                 console.error("User belum login.");
                 setLoading(false);
                 setProduct(null);
+                setUserProfile(null);
                 return;
             }
-            setUser(session.user);
 
+            const currentUserId = session.user.id;
 
+            // 1. Fetch data user dari public.users (untuk username dan email)
+            const { data: userData, error: userError } = await supabase
+                .from('users')
+                .select('id, username, email')
+                .eq('id', currentUserId)
+                .single();
+
+            if (userError || !userData) {
+                console.error("Gagal memuat profil user:", userError?.message);
+                // Biarkan lanjut, tapi userProfile akan null
+            } else {
+                setUserProfile(userData);
+            }
+
+            // 2. Fetch Product Data
             if (!params.id) {
                 console.error("ID Produk tidak ditemukan di params.");
                 setLoading(false);
-                setProduct(null);
                 return;
             }
 
-            // Fetch Product Data
             const { data, error } = await supabase
                 .from("produk")
                 .select(`
@@ -222,11 +224,12 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
                     harga: parseFloat(data.harga as string),
                     stok: data.stok ?? 0,
                     profile_penjual: Array.isArray(data.profile_penjual)
-                        ? data.profile_penjual[0] // Ambil elemen pertama
+                        ? data.profile_penjual[0]
                         : data.profile_penjual
                 };
-
                 setProduct(productData);
+            } else {
+                setProduct(null);
             }
 
             setLoading(false);
@@ -235,19 +238,7 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
         fetchData();
     }, [params.id, supabase]);
 
-    if (loading) {
-        return (
-            <MainLayoutPembeli>
-                <div className="w-full flex flex-col items-center justify-center py-20">
-                    <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-gray-600 mt-4">Memuat produk...</p>
-                </div>
-            </MainLayoutPembeli>
-        );
-    }
-
-    // Bagian dari kode Anda yang lain (Comment, Rating, Render Stars, dll.) tetap ada di bawah sini
-
+    // ... (Logika Comment/Rating) ...
     const handleSubmitComment = () => {
         if (comment.trim() && rating > 0) {
             const newComment: Comment = {
@@ -276,13 +267,36 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
             </div>
         );
     };
-    // ... (Akhir Logika Comment/Rating Anda)
+    // ... (Akhir Logika Comment/Rating) ...
+
+    if (loading) {
+        return (
+            <MainLayoutPembeli>
+                <div className="w-full flex flex-col items-center justify-center py-20">
+                    <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-gray-600 mt-4">Memuat produk...</p>
+                </div>
+            </MainLayoutPembeli>
+        );
+    }
 
     if (!product) {
         return (
             <MainLayoutPembeli>
                 <div className="p-10 text-center text-xl text-red-600">
-                    Produk tidak ditemukan, mungkin ID salah, atau Anda belum login (RLS memblokir akses).
+                    Produk tidak ditemukan, mungkin ID salah, atau Anda belum login.
+                </div>
+            </MainLayoutPembeli>
+        );
+    }
+
+    // Pengecekan status user
+    if (!userProfile) {
+        // Tampilkan pesan jika user login tapi profil tidak ditemukan
+        return (
+            <MainLayoutPembeli>
+                <div className="p-10 text-center text-xl text-red-600">
+                    Error: Profil pembeli tidak ditemukan. Pastikan Anda sudah login.
                 </div>
             </MainLayoutPembeli>
         );
@@ -398,10 +412,10 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
                                         className="flex-1 bg-blue-600 hover:bg-blue-700"
                                         size="lg"
                                         onClick={handleBuyNow}
-                                        disabled={product.stok === 0}
+                                        disabled={product.stok === 0 || !userProfile}
                                     >
                                         <ShoppingCart className="w-5 h-5 mr-2" />
-                                        {product.stok === 0 ? 'Stok Habis' : 'Beli Sekarang'}
+                                        {product.stok === 0 ? 'Stok Habis' : (!userProfile ? 'Login Dulu' : 'Beli Sekarang')}
                                     </Button>
                                 </div>
                             </div>
@@ -512,23 +526,23 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
                         {transactionStatus === 'processing' && (
                             <div className="flex flex-col items-center justify-center">
                                 <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                <AlertDialogTitle className="mt-4">Memproses Transaksi...</AlertDialogTitle>
-                                <AlertDialogDescription>Harap tunggu sebentar, kami sedang mencatat pesanan Anda.</AlertDialogDescription>
+                                <AlertDialogTitle className="mt-4">Menyiapkan Pesanan...</AlertDialogTitle>
+                                <AlertDialogDescription>Harap tunggu sebentar, kami sedang menyiapkan tautan WhatsApp.</AlertDialogDescription>
                             </div>
                         )}
                         {transactionStatus === 'success' && (
                             <div className="flex flex-col items-center justify-center text-green-600">
                                 <CheckCircle className="w-10 h-10 mb-2" />
-                                <AlertDialogTitle className="text-2xl font-bold">Transaksi Berhasil!</AlertDialogTitle>
+                                <AlertDialogTitle className="text-2xl font-bold">Siap Menghubungi Penjual!</AlertDialogTitle>
                                 <AlertDialogDescription className="text-center">
-                                    Pesanan Anda telah dicatat. Anda akan diarahkan ke WhatsApp Penjual untuk menyelesaikan pembayaran.
+                                    Anda akan diarahkan ke WhatsApp Penjual untuk menyelesaikan pemesanan.
                                 </AlertDialogDescription>
                             </div>
                         )}
                         {transactionStatus === 'error' && (
                             <div className="flex flex-col items-center justify-center text-red-600">
                                 <XCircle className="w-10 h-10 mb-2" />
-                                <AlertDialogTitle className="text-2xl font-bold">Transaksi Gagal</AlertDialogTitle>
+                                <AlertDialogTitle className="text-2xl font-bold">Gagal Membuat Tautan</AlertDialogTitle>
                                 <AlertDialogDescription className="text-center">
                                     {errorMessage}
                                 </AlertDialogDescription>
@@ -538,7 +552,7 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
                             <>
                                 <AlertDialogTitle className="text-2xl font-bold">Konfirmasi Pembelian</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    Pastikan detail pesanan sudah benar sebelum melanjutkan ke pembayaran via WhatsApp.
+                                    Pastikan detail pesanan sudah benar. Anda akan dihubungkan ke WhatsApp Penjual.
                                 </AlertDialogDescription>
                             </>
                         )}
@@ -554,6 +568,12 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
                                 <span className="text-gray-600 flex items-center gap-1"><Store className="w-4 h-4" /> Toko</span>
                                 <span className="font-medium">{product.profile_penjual?.store_name || "Toko Tidak Dikenal"}</span>
                             </div>
+
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-600 flex items-center gap-1">👤 Pembeli</span>
+                                <span className="font-medium">{userProfile?.username || "Loading..."}</span>
+                            </div>
+
 
                             <div className="flex justify-between text-sm">
                                 <span className="text-gray-600 flex items-center gap-1"><Package className="w-4 h-4" /> Produk</span>
@@ -589,6 +609,7 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
                                 <AlertDialogAction
                                     onClick={confirmPayment}
                                     className='bg-green-600 hover:bg-green-700'
+                                    disabled={!userProfile}
                                 >
                                     <Phone className="w-4 h-4 mr-2" />
                                     Lanjut Pembayaran (WA)
