@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from 'react';
-import { Star, ShoppingCart, Plus, Minus, Store, ThumbsUp, MessageSquare, Clock, ArrowLeft, CheckCircle, Phone, DollarSign, XCircle, Package } from 'lucide-react';
+import { Star, ShoppingCart, Plus, Minus, Store, ThumbsUp, MessageSquare, Clock, ArrowLeft, CheckCircle, Phone, DollarSign, XCircle, Package, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,10 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+// Import komponen Shadcn UI untuk Notifikasi
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+
+
 interface Comment {
     id: number;
     name: string;
@@ -33,7 +37,7 @@ interface Comment {
 // Interface untuk data produk yang lebih jelas
 interface ProductData {
     id: string;
-    penjual_id: string;
+    penjual_id: string; // Tambahkan penjual_id
     nama_produk: string;
     harga: number;
     gambar: string | null;
@@ -64,11 +68,12 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
     const [loading, setLoading] = useState(true);
     const [quantity, setQuantity] = useState<number>(1);
     const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
-    // Kita tetap menggunakan transactionStatus untuk mengelola tampilan dialog
     const [transactionStatus, setTransactionStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
     const [errorMessage, setErrorMessage] = useState<string>('');
-    // State baru untuk menyimpan data user dari public.users
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+    // State Notifikasi Keranjang
+    const [notification, setNotification] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
 
     // untuk comment
     const [comment, setComment] = useState<string>('');
@@ -95,18 +100,161 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
         }
     };
 
-    // LOGIKA PEMBELIAN (Hanya menampilkan dialog)
+    // Helper untuk notifikasi keranjang
+    const showNotification = (type: 'success' | 'error', message: string) => {
+        setNotification({ type, message });
+        setTimeout(() => setNotification({ type: null, message: '' }), 5000);
+    };
+
+
+    // ///////////////////////////////////////////////////////////////////////////////
+    // LOGIKA TAMBAH KE KERANJANG BARU (Menggantikan tombol 'Tambah ke Keranjang')
+    // ///////////////////////////////////////////////////////////////////////////////
+    const handleAddToCart = async () => {
+        setNotification({ type: null, message: '' });
+
+        if (!userProfile) {
+            showNotification('error', 'Anda harus login untuk menambahkan produk ke keranjang.');
+            return;
+        }
+
+        if (!product || product.stok === 0) {
+            showNotification('error', 'Produk tidak valid atau stok habis.');
+            return;
+        }
+
+        if (quantity === 0) {
+            showNotification('error', 'Jumlah produk harus lebih dari nol.');
+            return;
+        }
+
+        const user_id = userProfile.id;
+        const produk_id = product.id;
+        const jumlah_produk_dipilih = quantity; // Menggunakan quantity dari state
+        const total_harga_item = product.harga * jumlah_produk_dipilih;
+        const new_store_name = product.profile_penjual?.store_name || "Toko Tidak Dikenal";
+        const new_penjual_id = product.penjual_id;
+
+
+        // =========================================================================
+        // 1. VALIDASI TOKO BERBEDA (BUSINESS LOGIC)
+        // =========================================================================
+
+        // Ambil ID Penjual (toko) dari semua item yang sudah ada di keranjang user
+        const { data: cartItems, error: cartError } = await supabase
+            .from('keranjang')
+            .select(`
+                produk_id,
+                produk:produk_id (penjual_id, profile_penjual (store_name))
+            `)
+            .eq('user_id', user_id);
+
+        if (cartError) {
+            console.error("Error fetching cart items:", cartError);
+            showNotification('error', 'Gagal memuat keranjang untuk validasi.');
+            return;
+        }
+
+        if (cartItems && cartItems.length > 0) {
+            // Ambil ID Penjual pertama yang ada di keranjang
+            const firstCartItem = cartItems[0];
+            const existing_penjual_id = (firstCartItem.produk as any).penjual_id;
+            const existing_store_name = ((firstCartItem.produk as any).profile_penjual as any)?.store_name;
+
+            // Cek apakah produk baru berasal dari toko yang berbeda
+            if (existing_penjual_id && existing_penjual_id !== new_penjual_id) {
+                showNotification('error', `Produk harus dari toko yang sama. Keranjang Anda sudah berisi produk dari toko ${existing_store_name}.`);
+                return;
+            }
+        }
+
+        // =========================================================================
+        // 2. INSERT atau UPDATE (UPSERT)
+        // =========================================================================
+
+        // Cek apakah produk sudah ada di keranjang
+        const existingItem = cartItems?.find(item => item.produk_id === produk_id);
+
+        if (existingItem) {
+            // Jika produk sudah ada, kita harus mengambil jumlah lama untuk diupdate.
+            const { data: currentItem, error: fetchError } = await supabase
+                .from('keranjang')
+                .select('jumlah_produk_dipilih')
+                .eq('user_id', user_id)
+                .eq('produk_id', produk_id)
+                .single();
+
+            if (fetchError || !currentItem) {
+                console.error("Error fetching existing item quantity:", fetchError);
+                showNotification('error', 'Gagal memverifikasi item di keranjang.');
+                return;
+            }
+
+            // Jumlah total yang baru (lama + quantity yang baru dipilih)
+            const new_total_quantity = currentItem.jumlah_produk_dipilih + jumlah_produk_dipilih;
+
+            // Cek Stok lagi setelah penambahan
+            if (new_total_quantity > product.stok) {
+                showNotification('error', `Gagal: Stok hanya tersisa ${product.stok}. Jumlah total di keranjang akan melebihi stok.`);
+                return;
+            }
+
+            // Lakukan UPDATE
+            const { error: updateError } = await supabase
+                .from('keranjang')
+                .update({
+                    jumlah_produk_dipilih: new_total_quantity,
+                    total: product.harga * new_total_quantity, // Hitung ulang total
+                })
+                .eq('user_id', user_id)
+                .eq('produk_id', produk_id);
+
+            if (updateError) {
+                console.error("Error updating cart item:", updateError);
+                showNotification('error', `Gagal mengupdate keranjang: ${updateError.message}`);
+                return;
+            }
+
+            showNotification('success', `Jumlah ${product.nama_produk} di keranjang berhasil ditambahkan menjadi ${new_total_quantity}!`);
+
+        } else {
+            // Jika produk belum ada, lakukan INSERT
+            const { error: insertError } = await supabase
+                .from('keranjang')
+                .insert({
+                    user_id: user_id,
+                    produk_id: produk_id,
+                    jumlah_produk_dipilih: jumlah_produk_dipilih,
+                    total: total_harga_item,
+                });
+
+            if (insertError) {
+                console.error("Error inserting cart item:", insertError);
+                showNotification('error', `Gagal menambahkan produk ke keranjang: ${insertError.message}`);
+                return;
+            }
+
+            showNotification('success', `Produk ${product.nama_produk} berhasil ditambahkan ke keranjang! Toko: ${new_store_name}`);
+        }
+    };
+    // ///////////////////////////////////////////////////////////////////////////////
+    // END LOGIKA TAMBAH KE KERANJANG BARU
+    // ///////////////////////////////////////////////////////////////////////////////
+
+
+
+    // LOGIKA PEMBELIAN (Hanya menampilkan dialog) - TIDAK BERUBAH DARI REVISI TERAKHIR
     const handleBuyNow = () => {
         if (!product) return;
         if (quantity > product.stok) {
-            alert("Stok tidak mencukupi!");
+            showNotification('error', "Stok tidak mencukupi!");
             return;
         }
         setTransactionStatus('idle'); // Reset status sebelum buka dialog
         setIsDialogOpen(true); // Tampilkan dialog konfirmasi/bill
     };
 
-    // LOGIKA KONFIRMASI (LANGSUNG KE WA, TANPA DB)
+    // LOGIKA KONFIRMASI (LANGSUNG KE WA, TANPA DB) - TIDAK BERUBAH DARI REVISI TERAKHIR
     const confirmPayment = async () => {
         if (!product || !userProfile) {
             setErrorMessage("Data produk atau profil pengguna tidak lengkap.");
@@ -122,7 +270,6 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
         const storeName = product.profile_penjual?.store_name || "Penjual";
 
         if (waNumber) {
-            // 1. Susun Pesan WhatsApp dengan data user
             const waMessage = `
 Halo ${storeName}, saya *${userProfile.username}* (${userProfile.email}) ingin memesan produk:
 ------------------------------------------
@@ -137,14 +284,12 @@ Mohon konfirmasi pesanan saya. Terima kasih.
             const encodedMessage = encodeURIComponent(waMessage);
             const waUrl = `https://wa.me/${waNumber.replace(/\D/g, '')}?text=${encodedMessage}`;
 
-            // 2. Set status sukses dan direct ke WA
             setTransactionStatus('success');
 
             setTimeout(() => {
                 window.open(waUrl, '_blank');
-                // 3. HILANGKAN ALERT DIALOG (SETELAH DIRECT)
                 setIsDialogOpen(false);
-                setTransactionStatus('idle'); // Reset status untuk next pembelian
+                setTransactionStatus('idle');
             }, 1000);
 
         } else {
@@ -179,7 +324,6 @@ Mohon konfirmasi pesanan saya. Terima kasih.
 
             if (userError || !userData) {
                 console.error("Gagal memuat profil user:", userError?.message);
-                // Biarkan lanjut, tapi userProfile akan null
             } else {
                 setUserProfile(userData);
             }
@@ -219,13 +363,26 @@ Mohon konfirmasi pesanan saya. Terima kasih.
             }
 
             if (data) {
+                // Mapping dan penyesuaian tipe data
+                const rawProfile = Array.isArray(data.profile_penjual)
+                    ? data.profile_penjual[0]
+                    : data.profile_penjual;
+
                 const productData: ProductData = {
-                    ...data,
+                    id: data.id,
+                    penjual_id: data.penjual_id, // Pastikan ini masuk
+                    nama_produk: data.nama_produk,
                     harga: parseFloat(data.harga as string),
+                    gambar: data.gambar,
+                    deskripsi: data.deskripsi,
                     stok: data.stok ?? 0,
-                    profile_penjual: Array.isArray(data.profile_penjual)
-                        ? data.profile_penjual[0]
-                        : data.profile_penjual
+                    keunggulan_produk: data.keunggulan_produk,
+                    jenis_produk: data.jenis_produk,
+                    profile_penjual: rawProfile ? {
+                        store_name: rawProfile.store_name as string,
+                        phone: rawProfile.phone as string,
+                        status: rawProfile.status as boolean,
+                    } : null,
                 };
                 setProduct(productData);
             } else {
@@ -292,7 +449,6 @@ Mohon konfirmasi pesanan saya. Terima kasih.
 
     // Pengecekan status user
     if (!userProfile) {
-        // Tampilkan pesan jika user login tapi profil tidak ditemukan
         return (
             <MainLayoutPembeli>
                 <div className="p-10 text-center text-xl text-red-600">
@@ -320,6 +476,22 @@ Mohon konfirmasi pesanan saya. Terima kasih.
     return (
         <MainLayoutPembeli>
             <div className="container mx-auto px-4 py-8 max-w-7xl">
+                {/* Notifikasi Keranjang */}
+                {notification.type && (
+                    <Alert
+                        variant={notification.type === 'error' ? 'destructive' : 'default'}
+                        className={`mb-4 ${notification.type === 'success' ? 'bg-green-50 text-green-700 border-green-300' : ''}`}
+                    >
+                        {notification.type === 'success' ? (
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                        ) : (
+                            <AlertCircle className="h-4 w-4" />
+                        )}
+                        <AlertTitle>{notification.type === 'success' ? 'Berhasil!' : 'Gagal!'}</AlertTitle>
+                        <AlertDescription>{notification.message}</AlertDescription>
+                    </Alert>
+                )}
+
                 {/* Bagian Navigasi/Kembali */}
                 <button
                     onClick={() => window.history.back()}
@@ -405,14 +577,20 @@ Mohon konfirmasi pesanan saya. Terima kasih.
 
                                 {/* Action Buttons */}
                                 <div className="flex flex-col md:flex-row gap-4 mt-6 w-full">
-                                    <Button variant="outline" className="flex-1 py-4 text-lg" size="lg">
+                                    <Button
+                                        variant="outline"
+                                        className="flex-1 py-4 text-lg"
+                                        size="lg"
+                                        onClick={handleAddToCart} // Menggunakan fungsi baru
+                                        disabled={product.stok === 0 || !userProfile || quantity === 0}
+                                    >
                                         Tambah ke Keranjang
                                     </Button>
                                     <Button
                                         className="flex-1 bg-blue-600 hover:bg-blue-700"
                                         size="lg"
                                         onClick={handleBuyNow}
-                                        disabled={product.stok === 0 || !userProfile}
+                                        disabled={product.stok === 0 || !userProfile || quantity === 0}
                                     >
                                         <ShoppingCart className="w-5 h-5 mr-2" />
                                         {product.stok === 0 ? 'Stok Habis' : (!userProfile ? 'Login Dulu' : 'Beli Sekarang')}
