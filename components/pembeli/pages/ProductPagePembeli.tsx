@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useAuth } from '@/hooks/useAuth'; // Asumsi Anda memiliki hook untuk user/session
+// import { useAuth } from '@/hooks/useAuth'; // Asumsi Anda memiliki hook untuk user/session
 
 // Asumsi path untuk gambar pengganti
 const NO_IMAGE_PLACEHOLDER = '/images/nothing.png';
@@ -18,6 +18,7 @@ const PRODUCTS_PER_PAGE = 10; // Menampilkan 10 produk per halaman
 // Types
 interface Product {
     id: string;
+    penjual_id: string; // Tambahkan penjual_id untuk validasi toko
     nama_produk: string;
     harga: number;
     gambar: string | null;
@@ -136,8 +137,15 @@ export default function ProductPagePembeli() {
     const [isLoading, setIsLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    // State Notifikasi (Menggantikan Alert Sederhana)
+    // State Notifikasi
     const [notification, setNotification] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
+
+    // Helper untuk menampilkan notifikasi dan menghilangkannya
+    const showNotification = (type: 'success' | 'error', message: string) => {
+        setNotification({ type, message });
+        setTimeout(() => setNotification({ type: null, message: '' }), 5000);
+    };
+
 
     // --- LOGIKA ADD TO CART (UTAMA) ---
     const handleAddToCart = async (product: Product) => {
@@ -146,50 +154,128 @@ export default function ProductPagePembeli() {
         const { data: { user } } = await supabase.auth.getUser();
 
         if (!user) {
-            setNotification({ type: 'error', message: 'Anda harus login untuk menambahkan produk ke keranjang.' });
+            showNotification('error', 'Anda harus login untuk menambahkan produk ke keranjang.');
             return;
         }
 
         if (product.stok === 0) {
-            setNotification({ type: 'error', message: 'Stok produk ini sudah habis.' });
+            showNotification('error', 'Stok produk ini sudah habis.');
             return;
         }
 
-        // Panggil Fungsi PostgreSQL yang telah dibuat
-        const { data, error } = await supabase.rpc('add_or_update_cart_item', {
-            p_user_id: user.id,
-            p_produk_id: product.id,
-            p_jumlah: 1, // Default menambah 1 unit
-        });
+        const user_id = user.id;
+        const produk_id = product.id;
+        const jumlah_produk_dipilih = 1; // Default menambah 1 unit
+        const total_harga_item = product.harga * jumlah_produk_dipilih;
+        const new_store_name = product.profile_penjual?.store_name || "Toko Tidak Dikenal";
+        const new_penjual_id = (product as any).penjual_id; // Ambil penjual_id (sudah ada di Product interface tapi Supabase-select perlu dijamin)
 
-        if (error) {
-            console.error("Error adding to cart:", error);
-            setNotification({ type: 'error', message: `Kesalahan pada sistem: ${error.message}` });
+
+        // =========================================================================
+        // 1. VALIDASI TOKO BERBEDA (BUSINESS LOGIC)
+        // =========================================================================
+
+        // Ambil ID Penjual (toko) dari semua item yang sudah ada di keranjang user
+        const { data: cartItems, error: cartError } = await supabase
+            .from('keranjang')
+            .select(`
+                produk_id,
+                produk:produk_id (penjual_id, profile_penjual (store_name))
+            `)
+            .eq('user_id', user_id);
+
+        if (cartError) {
+            console.error("Error fetching cart items:", cartError);
+            showNotification('error', 'Gagal memuat keranjang untuk validasi.');
             return;
         }
 
-        // Response dari fungsi Supabase adalah JSON (data.message, data.success, data.store_name)
-        const result = data as { success: boolean, message: string, store_name?: string };
+        if (cartItems && cartItems.length > 0) {
+            // Ambil ID Penjual pertama yang ada di keranjang
+            const firstCartItem = cartItems[0];
+            const existing_penjual_id = (firstCartItem.produk as any).penjual_id;
+            const existing_store_name = ((firstCartItem.produk as any).profile_penjual as any)?.store_name;
 
-        if (result.success) {
-            setNotification({
-                type: 'success',
-                message: `Berhasil menambahkan ${product.nama_produk} ke keranjang! Toko: ${result.store_name}`
-            });
+            // Cek apakah produk baru berasal dari toko yang berbeda
+            if (existing_penjual_id && existing_penjual_id !== new_penjual_id) {
+                showNotification('error', `Produk harus dari toko yang sama. Keranjang Anda sudah berisi produk dari toko ${existing_store_name}.`);
+                return;
+            }
+        }
+
+        // =========================================================================
+        // 2. INSERT atau UPDATE (UPSERT)
+        // =========================================================================
+
+        // Cek apakah produk sudah ada di keranjang
+        const existingItem = cartItems?.find(item => item.produk_id === produk_id);
+        let new_quantity = jumlah_produk_dipilih;
+
+        if (existingItem) {
+            // Jika produk sudah ada, kita harus mengambil jumlah lama untuk diupdate.
+            const { data: currentItem, error: fetchError } = await supabase
+                .from('keranjang')
+                .select('jumlah_produk_dipilih')
+                .eq('user_id', user_id)
+                .eq('produk_id', produk_id)
+                .single();
+
+            if (fetchError || !currentItem) {
+                // Handle error saat fetch jumlah produk yang sudah ada
+                console.error("Error fetching existing item quantity:", fetchError);
+                showNotification('error', 'Gagal memverifikasi item di keranjang.');
+                return;
+            }
+
+            new_quantity = currentItem.jumlah_produk_dipilih + jumlah_produk_dipilih;
+
+            // Cek Stok lagi setelah penambahan
+            if (new_quantity > product.stok) {
+                showNotification('error', `Gagal: Stok hanya tersisa ${product.stok}. Anda sudah memilih ${currentItem.jumlah_produk_dipilih}.`);
+                return;
+            }
+
+            // Lakukan UPDATE
+            const { error: updateError } = await supabase
+                .from('keranjang')
+                .update({
+                    jumlah_produk_dipilih: new_quantity,
+                    total: product.harga * new_quantity, // Hitung ulang total
+                })
+                .eq('user_id', user_id)
+                .eq('produk_id', produk_id);
+
+            if (updateError) {
+                console.error("Error updating cart item:", updateError);
+                showNotification('error', `Gagal mengupdate keranjang: ${updateError.message}`);
+                return;
+            }
+
+            showNotification('success', `Jumlah ${product.nama_produk} di keranjang berhasil ditambahkan menjadi ${new_quantity}!`);
+
         } else {
-            // Ini akan menangani validasi Toko Berbeda
-            setNotification({
-                type: 'error',
-                message: result.message
-            });
-        }
+            // Jika produk belum ada, lakukan INSERT
+            const { error: insertError } = await supabase
+                .from('keranjang')
+                .insert({
+                    user_id: user_id,
+                    produk_id: produk_id,
+                    jumlah_produk_dipilih: new_quantity,
+                    total: total_harga_item,
+                });
 
-        // Hilangkan notifikasi setelah 5 detik
-        setTimeout(() => setNotification({ type: null, message: '' }), 5000);
+            if (insertError) {
+                console.error("Error inserting cart item:", insertError);
+                showNotification('error', `Gagal menambahkan produk ke keranjang: ${insertError.message}`);
+                return;
+            }
+
+            showNotification('success', `Produk ${product.nama_produk} berhasil ditambahkan ke keranjang! Toko: ${new_store_name}`);
+        }
     };
 
 
-    // --- LOGIKA FETCH DATA DARI SUPABASE --- (tetap sama)
+    // --- LOGIKA FETCH DATA DARI SUPABASE --- 
     useEffect(() => {
         async function fetchProducts() {
             setIsLoading(true);
@@ -204,6 +290,7 @@ export default function ProductPagePembeli() {
                     gambar, 
                     jenis_produk,
                     stok,
+                    penjual_id,  
                     profile_penjual:penjual_id (store_name, status)
                 `);
 
@@ -221,12 +308,28 @@ export default function ProductPagePembeli() {
 
                 if (error) throw error;
 
-                // Map data untuk memastikan harga dan stok adalah number
-                const mappedData: Product[] = (data ?? []).map(p => ({
-                    ...p,
-                    harga: parseFloat(p.harga as string),
-                    stok: p.stok ?? 0,
-                }));
+                // Map data untuk memastikan harga, stok, dan relasi adalah tipe yang benar
+                const mappedData: Product[] = (data ?? []).map(p => {
+                    // Pastikan profile_penjual diolah dari hasil join array/objek menjadi objek tunggal.
+                    const rawProfile = Array.isArray(p.profile_penjual)
+                        ? p.profile_penjual[0]
+                        : p.profile_penjual;
+
+                    return {
+                        id: p.id as string,
+                        nama_produk: p.nama_produk as string,
+                        harga: parseFloat(p.harga as string),
+                        gambar: p.gambar as string | null,
+                        jenis_produk: p.jenis_produk as string | null,
+                        stok: p.stok ?? 0,
+                        penjual_id: p.penjual_id as string,
+                        // Olah profile_penjual agar sesuai dengan interface Product
+                        profile_penjual: rawProfile ? {
+                            store_name: rawProfile.store_name as string,
+                            status: rawProfile.status as boolean,
+                        } : null,
+                    };
+                });
 
                 setProducts(mappedData);
 
