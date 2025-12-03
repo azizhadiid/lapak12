@@ -1,11 +1,11 @@
 "use client"
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Minus, Plus, ArrowLeft, X, Loader2, Store, ShoppingBasket, Phone } from 'lucide-react';
+import { Minus, Plus, ArrowLeft, X, Loader2, Store, ShoppingBasket, Phone, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import MainLayoutPembeli from '../MainLayoutPembeli';
-import { FaWhatsapp } from 'react-icons/fa'; // Icon WhatsApp
+import { FaWhatsapp } from 'react-icons/fa';
 import Link from 'next/link';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -23,7 +23,7 @@ interface KeranjangProduct {
     harga: number; // Harga satuan
     stok: number;
     gambar: string | null;
-    profile_penjual: PenjualProfile; // Langsung dari join
+    profile_penjual: PenjualProfile;
 }
 
 // Interface untuk Item Keranjang (dari tabel 'keranjang')
@@ -45,6 +45,8 @@ export default function KeranjangPagePembeli() {
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    // State Notifikasi
+    const [notification, setNotification] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
 
     // --- Helpers ---
     const formatRupiah = (value: number) =>
@@ -53,6 +55,12 @@ export default function KeranjangPagePembeli() {
             currency: "IDR",
             minimumFractionDigits: 0,
         }).format(value);
+
+    const showNotification = (type: 'success' | 'error', message: string) => {
+        setNotification({ type, message });
+        setTimeout(() => setNotification({ type: null, message: '' }), 5000);
+    };
+
 
     // --- Fetch Data Keranjang ---
     const fetchCartItems = useCallback(async () => {
@@ -68,7 +76,6 @@ export default function KeranjangPagePembeli() {
         }
 
         try {
-            // Query untuk mengambil item keranjang, JOIN ke produk dan profile penjual
             const { data, error } = await supabase
                 .from('keranjang')
                 .select(`
@@ -139,15 +146,61 @@ export default function KeranjangPagePembeli() {
     }, [fetchCartItems]);
 
 
+    // ///////////////////////////////////////////////////////////////////////////////
+    // FUNGSI UPDATE KUANTITAS (TAMBAH/KURANG)
+    // ///////////////////////////////////////////////////////////////////////////////
+    const updateQuantity = async (itemId: string, currentItem: CartItem, change: number) => {
+        setNotification({ type: null, message: '' });
+
+        const newQuantity = currentItem.jumlah_produk_dipilih + change;
+        const productStok = currentItem.produk.stok;
+        const productPrice = currentItem.produk.harga;
+
+        // 1. Validasi Batas Bawah (Minimum 1)
+        if (newQuantity < 1) {
+            showNotification('error', 'Jumlah produk minimal adalah 1. Gunakan tombol hapus untuk menghilangkan item.');
+            return;
+        }
+
+        // 2. Validasi Stok
+        if (newQuantity > productStok) {
+            showNotification('error', `Gagal: Stok produk (${currentItem.produk.nama_produk}) hanya tersisa ${productStok}.`);
+            return;
+        }
+
+        const newTotal = productPrice * newQuantity;
+
+        // 3. Update Database
+        const { error: updateError } = await supabase
+            .from('keranjang')
+            .update({
+                jumlah_produk_dipilih: newQuantity,
+                total: newTotal
+            })
+            .eq('id', itemId);
+
+        if (updateError) {
+            console.error("Error updating quantity:", updateError);
+            showNotification('error', `Gagal mengupdate jumlah: ${updateError.message}`);
+            return;
+        }
+
+        // 4. Update State Lokal & Notifikasi Sukses
+        showNotification('success', `Jumlah produk ${currentItem.produk.nama_produk} berhasil diubah menjadi ${newQuantity}.`);
+
+        // Panggil ulang fetch data untuk refresh tampilan total keseluruhan
+        fetchCartItems();
+    };
+
+    // Fungsi Dummy Hapus Item (Akan diaktifkan di revisi selanjutnya)
+    const removeItem = (id: string) => {
+        // Logika hapus akan diimplementasikan nanti
+        console.log("Hapus item:", id);
+    };
+
     // --- Logika Perhitungan Total ---
-    // Total Subtotal (Total semua item)
     const subtotal = cartItems.reduce((sum, item) => sum + item.total, 0);
-
-    // Dapatkan data penjual pertama (karena kita membatasi 1 keranjang 1 toko)
     const sellerInfo = cartItems.length > 0 ? cartItems[0].produk.profile_penjual : null;
-
-    // Karena ini adalah sistem WA, kita asumsikan tidak ada pajak/diskon kompleks
-    // Kita hapus tax, shipping, discount dari logika lama.
     const finalTotal = subtotal;
 
     // --- Render Komponen ---
@@ -193,6 +246,22 @@ export default function KeranjangPagePembeli() {
     return (
         <MainLayoutPembeli>
             <div className="container mx-auto px-4 py-8">
+                {/* Notifikasi */}
+                {notification.type && (
+                    <Alert
+                        variant={notification.type === 'error' ? 'destructive' : 'default'}
+                        className={`mb-4 ${notification.type === 'success' ? 'bg-green-50 text-green-700 border-green-300' : ''}`}
+                    >
+                        {notification.type === 'success' ? (
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                        ) : (
+                            <AlertCircle className="h-4 w-4" />
+                        )}
+                        <AlertTitle>{notification.type === 'success' ? 'Berhasil!' : 'Gagal!'}</AlertTitle>
+                        <AlertDescription>{notification.message}</AlertDescription>
+                    </Alert>
+                )}
+
                 <div className="mb-6 flex justify-between items-center">
                     <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
                         Keranjang Belanja
@@ -224,9 +293,9 @@ export default function KeranjangPagePembeli() {
                         {cartItems.map(item => (
                             <Card key={item.id} className="shadow-sm relative">
 
-                                {/* Tombol Silang (X) di pojok kanan atas - Akan diimplementasikan fungsi Hapus di revisi selanjutnya */}
+                                {/* Tombol Silang (X) di pojok kanan atas */}
                                 <button
-                                    // onClick={() => removeItem(item.id)}
+                                    onClick={() => removeItem(item.id)}
                                     className="absolute top-2 right-2 text-gray-400 hover:text-red-600"
                                     title="Hapus item (belum aktif)"
                                 >
@@ -249,7 +318,6 @@ export default function KeranjangPagePembeli() {
                                             <div className="flex-1 min-w-0">
                                                 <h3 className="font-medium text-gray-900 mb-1 line-clamp-2">{item.produk.nama_produk}</h3>
                                                 <p className="text-sm text-red-500">Stok: {item.produk.stok}</p>
-                                                {/* <p className="text-sm text-gray-600">Ukuran: {item.size}</p> */}
                                             </div>
                                         </div>
 
@@ -266,26 +334,26 @@ export default function KeranjangPagePembeli() {
                                             <span className="md:hidden font-medium text-gray-700">Jumlah:</span>
 
                                             <div className="flex items-center gap-2 border rounded-lg">
-                                                {/* Tombol Minus - Akan diimplementasikan fungsi Update di revisi selanjutnya */}
+                                                {/* Tombol Minus (Kurang Jumlah) */}
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    // onClick={() => updateQuantity(item.id, -1)}
-                                                    className="h-10 w-10 p-0 opacity-50 cursor-not-allowed"
-                                                    title="Belum aktif"
+                                                    onClick={() => updateQuantity(item.id, item, -1)}
+                                                    disabled={item.jumlah_produk_dipilih <= 1} // Disable jika sudah 1
+                                                    className="h-10 w-10 p-0 hover:bg-gray-100"
                                                 >
                                                     <Minus className="w-4 h-4" />
                                                 </Button>
 
                                                 <span className="w-12 text-center font-medium">{item.jumlah_produk_dipilih}</span>
 
-                                                {/* Tombol Plus - Akan diimplementasikan fungsi Update di revisi selanjutnya */}
+                                                {/* Tombol Plus (Tambah Jumlah) */}
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    // onClick={() => updateQuantity(item.id, 1)}
-                                                    className="h-10 w-10 p-0 opacity-50 cursor-not-allowed"
-                                                    title="Belum aktif"
+                                                    onClick={() => updateQuantity(item.id, item, 1)}
+                                                    disabled={item.jumlah_produk_dipilih >= item.produk.stok} // Disable jika sudah mencapai stok
+                                                    className="h-10 w-10 p-0 hover:bg-gray-100"
                                                 >
                                                     <Plus className="w-4 h-4" />
                                                 </Button>
@@ -314,8 +382,11 @@ export default function KeranjangPagePembeli() {
                                 </Button>
                             </Link>
                             <div className="flex flex-col sm:flex-row gap-3">
-                                {/* Tombol Bersihkan - Akan diimplementasikan fungsi di revisi selanjutnya */}
-                                <Button variant="outline" className="border-red-500 text-red-500 hover:bg-red-50 opacity-50 cursor-not-allowed">
+                                <Button
+                                    variant="outline"
+                                    className="border-red-500 text-red-500 hover:bg-red-50 opacity-50 cursor-not-allowed"
+                                // onClick={handleClearCart} // Akan diimplementasikan di revisi selanjutnya
+                                >
                                     Bersihkan Keranjang
                                 </Button>
                             </div>
