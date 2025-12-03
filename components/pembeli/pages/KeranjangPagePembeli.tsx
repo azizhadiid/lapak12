@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Minus, Plus, ArrowLeft, X, Loader2, Store, ShoppingBasket, Phone, CheckCircle, AlertCircle, Trash2 } from 'lucide-react'; // Tambah icon Trash2
+import { Minus, Plus, ArrowLeft, X, Loader2, Store, ShoppingBasket, Phone, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import MainLayoutPembeli from '../MainLayoutPembeli';
@@ -52,6 +52,14 @@ interface CartItem {
     produk: KeranjangProduct;
 }
 
+// Interface baru untuk data user yang diambil dari public.users
+interface UserProfile {
+    id: string;
+    username: string;
+    email: string;
+}
+
+
 export default function KeranjangPagePembeli() {
     const supabase = createClientComponentClient();
 
@@ -59,9 +67,9 @@ export default function KeranjangPagePembeli() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [notification, setNotification] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
-    // State baru untuk konfirmasi hapus semua keranjang
     const [isClearCartDialogOpen, setIsClearCartDialogOpen] = useState(false);
-
+    const [userProfile, setUserProfile] = useState<UserProfile | null>(null); // Tambah state user profile
+    const [isCheckoutProcessing, setIsCheckoutProcessing] = useState(false); // State untuk tombol checkout
 
     // --- Helpers ---
     const formatRupiah = (value: number) =>
@@ -89,6 +97,15 @@ export default function KeranjangPagePembeli() {
             setIsLoading(false);
             return;
         }
+
+        // Ambil data user profile (username, email)
+        const { data: userData } = await supabase
+            .from('users')
+            .select('id, username, email')
+            .eq('id', user.id)
+            .single();
+
+        setUserProfile(userData || null);
 
         try {
             const { data, error } = await supabase
@@ -161,37 +178,84 @@ export default function KeranjangPagePembeli() {
 
 
     // ///////////////////////////////////////////////////////////////////////////////
-    // FUNGSI UTAMA: MENGHAPUS SEMUA ITEM KERANJANG BERDASARKAN USER_ID
+    // FUNGSI UTAMA: CHECKOUT VIA WHATSAPP & CLEAR KERANJANG
     // ///////////////////////////////////////////////////////////////////////////////
-    const handleClearCart = async () => {
+    const handleCheckoutWA = async () => {
+        setIsCheckoutProcessing(true);
         setNotification({ type: null, message: '' });
 
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (!user) {
-            showNotification('error', 'Anda harus login untuk membersihkan keranjang.');
+        if (cartItems.length === 0 || !userProfile || !sellerInfo) {
+            showNotification('error', 'Keranjang kosong atau data penjual/pembeli tidak lengkap.');
+            setIsCheckoutProcessing(false);
             return;
         }
 
-        // Operasi DELETE: Menghapus semua baris di tabel 'keranjang' milik user saat ini
-        const { error: deleteError } = await supabase
-            .from('keranjang')
-            .delete()
-            .eq('user_id', user.id); // RLS Anda menjamin ini hanya menghapus milik user sendiri
+        const waNumber = sellerInfo.phone;
+        const storeName = sellerInfo.store_name;
+        const totalHarga = formatRupiah(subtotal);
+        const buyerName = userProfile.username;
+        const buyerEmail = userProfile.email;
+        const currentUserId = userProfile.id;
 
-        if (deleteError) {
-            console.error("Error clearing cart:", deleteError);
-            showNotification('error', `Gagal membersihkan keranjang: ${deleteError.message}`);
+        if (!waNumber || waNumber === "N/A") {
+            showNotification('error', `Nomor WhatsApp Toko ${storeName} tidak ditemukan.`);
+            setIsCheckoutProcessing(false);
             return;
         }
 
-        // Sukses
-        showNotification('success', 'Keranjang berhasil dikosongkan.');
-        setIsClearCartDialogOpen(false); // Tutup dialog
-        fetchCartItems(); // Muat ulang data (akan menampilkan Keranjang Kosong)
+        // 1. Buat Pesan Detail Item
+        const itemDetails = cartItems.map((item, index) =>
+            `${index + 1}. ${item.produk.nama_produk} (${item.jumlah_produk_dipilih}x) - ${formatRupiah(item.total)}`
+        ).join('\n');
+
+
+        // 2. Susun Pesan WhatsApp Final
+        const waMessage = `
+Halo Toko ${storeName}, saya *${buyerName}* (${buyerEmail}) ingin melakukan pemesanan (keranjang) berikut:
+------------------------------------------
+*DETAIL PESANAN*
+${itemDetails}
+------------------------------------------
+*TOTAL KESELURUHAN*: ${totalHarga}
+------------------------------------------
+Mohon konfirmasi pesanan ini dan panduan pembayarannya. Terima kasih.
+        `.trim();
+
+        const encodedMessage = encodeURIComponent(waMessage);
+        const waUrl = `https://wa.me/${waNumber.replace(/\D/g, '')}?text=${encodedMessage}`;
+
+        // 3. Arahkan ke WhatsApp
+        window.open(waUrl, '_blank');
+
+        // 4. Hapus Isi Keranjang setelah redirect (Asumsi transaksi WA berhasil)
+        // Kita berikan sedikit waktu agar user melihat status 'processing' sebelum redirect
+        setTimeout(async () => {
+            const { error: deleteError } = await supabase
+                .from('keranjang')
+                .delete()
+                .eq('user_id', currentUserId);
+
+            if (deleteError) {
+                // Notifikasi ke user bahwa keranjang gagal dikosongkan (meski WA sudah terkirim)
+                console.error("Gagal membersihkan keranjang setelah checkout:", deleteError);
+                showNotification('error', 'Pesanan terkirim via WA, namun gagal mengosongkan keranjang di sistem.');
+            } else {
+                showNotification('success', 'Pesanan berhasil diteruskan ke WhatsApp! Keranjang Anda telah dikosongkan.');
+            }
+
+            // Muat ulang keranjang (akan menjadi kosong)
+            fetchCartItems();
+            setIsCheckoutProcessing(false);
+
+        }, 1000); // Tunggu 1 detik sebelum membersihkan DB
     };
 
-    // FUNGSI UPDATE KUANTITAS (TAMBAH/KURANG) - TIDAK BERUBAH
+
+    // ///////////////////////////////////////////////////////////////////////////////
+    // FUNGSI KERANJANG LAINNYA (Update/Delete/ClearCart) - Tetap sama
+    // ///////////////////////////////////////////////////////////////////////////////
+
+    // FUNGSI UPDATE KUANTITAS (TAMBAH/KURANG)
     const updateQuantity = async (itemId: string, currentItem: CartItem, change: number) => {
         setNotification({ type: null, message: '' });
 
@@ -229,7 +293,7 @@ export default function KeranjangPagePembeli() {
         fetchCartItems();
     };
 
-    // FUNGSI HAPUS ITEM KERANJANG - TIDAK BERUBAH
+    // FUNGSI HAPUS ITEM KERANJANG
     const removeItem = async (itemId: string, productName: string) => {
         setNotification({ type: null, message: '' });
 
@@ -250,6 +314,34 @@ export default function KeranjangPagePembeli() {
             fetchCartItems();
         }
     };
+
+    // FUNGSI BERSIHKAN KERANJANG
+    const handleClearCart = async () => {
+        setNotification({ type: null, message: '' });
+
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (!user) {
+            showNotification('error', 'Anda harus login untuk membersihkan keranjang.');
+            return;
+        }
+
+        const { error: deleteError } = await supabase
+            .from('keranjang')
+            .delete()
+            .eq('user_id', user.id);
+
+        if (deleteError) {
+            console.error("Error clearing cart:", deleteError);
+            showNotification('error', `Gagal membersihkan keranjang: ${deleteError.message}`);
+            return;
+        }
+
+        showNotification('success', 'Keranjang berhasil dikosongkan.');
+        setIsClearCartDialogOpen(false);
+        fetchCartItems();
+    };
+
 
     // --- Logika Perhitungan Total ---
     const subtotal = cartItems.reduce((sum, item) => sum + item.total, 0);
@@ -291,6 +383,19 @@ export default function KeranjangPagePembeli() {
                     <Link href="/produk" passHref>
                         <Button className="bg-blue-600 hover:bg-blue-700">Mulai Belanja</Button>
                     </Link>
+                </div>
+            </MainLayoutPembeli>
+        );
+    }
+
+    // Tampilkan loading saat proses checkout
+    if (isCheckoutProcessing) {
+        return (
+            <MainLayoutPembeli>
+                <div className="container mx-auto px-4 py-20 text-center">
+                    <Loader2 className="w-10 h-10 mx-auto animate-spin text-green-600 mb-4" />
+                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Memproses Pesanan...</h1>
+                    <p className="text-gray-600">Anda akan segera diarahkan ke WhatsApp Penjual.</p>
                 </div>
             </MainLayoutPembeli>
         );
@@ -439,7 +544,7 @@ export default function KeranjangPagePembeli() {
                                 <Button
                                     variant="outline"
                                     className="border-red-500 text-red-500 hover:bg-red-50"
-                                    onClick={() => setIsClearCartDialogOpen(true)} // Tampilkan dialog
+                                    onClick={() => setIsClearCartDialogOpen(true)}
                                     disabled={cartItems.length === 0}
                                 >
                                     <Trash2 className="w-4 h-4 mr-2" />
@@ -490,11 +595,19 @@ export default function KeranjangPagePembeli() {
                                 {/* Checkout Button (WA) */}
                                 <Button
                                     className="w-full bg-green-600 hover:bg-green-700 text-white py-6 text-lg font-medium mb-4"
-                                    // onClick={handleCheckoutWA} // Akan diimplementasikan di revisi selanjutnya
-                                    title="Fitur Checkout WA belum diimplementasikan"
+                                    onClick={handleCheckoutWA}
+                                    disabled={cartItems.length === 0 || !userProfile || isCheckoutProcessing}
                                 >
-                                    <FaWhatsapp className="w-6 h-6 mr-2" />
-                                    Proses Pesanan via WhatsApp
+                                    {isCheckoutProcessing ? (
+                                        <>
+                                            <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Memproses...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FaWhatsapp className="w-6 h-6 mr-2" />
+                                            Proses Pesanan via WhatsApp
+                                        </>
+                                    )}
                                 </Button>
 
                                 <p className='text-xs text-center text-gray-500 mt-2'>*Pembayaran dilakukan langsung ke Penjual via WhatsApp.</p>
