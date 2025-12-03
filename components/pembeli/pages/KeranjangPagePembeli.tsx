@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Minus, Plus, ArrowLeft, X, Loader2, Store, ShoppingBasket, Phone, CheckCircle, AlertCircle } from 'lucide-react';
+import { Minus, Plus, ArrowLeft, X, Loader2, Store, ShoppingBasket, Phone, CheckCircle, AlertCircle, Trash2 } from 'lucide-react'; // Tambah icon Trash2
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import MainLayoutPembeli from '../MainLayoutPembeli';
@@ -9,6 +9,19 @@ import { FaWhatsapp } from 'react-icons/fa';
 import Link from 'next/link';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+
+// Import komponen Shadcn UI untuk Alert Konfirmasi
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
 
 // Interface untuk Profile Penjual (diambil dari join)
 interface PenjualProfile {
@@ -45,8 +58,10 @@ export default function KeranjangPagePembeli() {
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    // State Notifikasi
     const [notification, setNotification] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
+    // State baru untuk konfirmasi hapus semua keranjang
+    const [isClearCartDialogOpen, setIsClearCartDialogOpen] = useState(false);
+
 
     // --- Helpers ---
     const formatRupiah = (value: number) =>
@@ -102,7 +117,6 @@ export default function KeranjangPagePembeli() {
 
             if (error) throw error;
 
-            // Mapping untuk memastikan struktur data sesuai interface
             const mappedItems: CartItem[] = (data || []).map(item => {
                 const rawProduct = item.produk as any;
                 const rawProfile = Array.isArray(rawProduct.profile_penjual)
@@ -147,8 +161,37 @@ export default function KeranjangPagePembeli() {
 
 
     // ///////////////////////////////////////////////////////////////////////////////
-    // FUNGSI UPDATE KUANTITAS (TAMBAH/KURANG)
+    // FUNGSI UTAMA: MENGHAPUS SEMUA ITEM KERANJANG BERDASARKAN USER_ID
     // ///////////////////////////////////////////////////////////////////////////////
+    const handleClearCart = async () => {
+        setNotification({ type: null, message: '' });
+
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (!user) {
+            showNotification('error', 'Anda harus login untuk membersihkan keranjang.');
+            return;
+        }
+
+        // Operasi DELETE: Menghapus semua baris di tabel 'keranjang' milik user saat ini
+        const { error: deleteError } = await supabase
+            .from('keranjang')
+            .delete()
+            .eq('user_id', user.id); // RLS Anda menjamin ini hanya menghapus milik user sendiri
+
+        if (deleteError) {
+            console.error("Error clearing cart:", deleteError);
+            showNotification('error', `Gagal membersihkan keranjang: ${deleteError.message}`);
+            return;
+        }
+
+        // Sukses
+        showNotification('success', 'Keranjang berhasil dikosongkan.');
+        setIsClearCartDialogOpen(false); // Tutup dialog
+        fetchCartItems(); // Muat ulang data (akan menampilkan Keranjang Kosong)
+    };
+
+    // FUNGSI UPDATE KUANTITAS (TAMBAH/KURANG) - TIDAK BERUBAH
     const updateQuantity = async (itemId: string, currentItem: CartItem, change: number) => {
         setNotification({ type: null, message: '' });
 
@@ -156,13 +199,11 @@ export default function KeranjangPagePembeli() {
         const productStok = currentItem.produk.stok;
         const productPrice = currentItem.produk.harga;
 
-        // 1. Validasi Batas Bawah (Minimum 1)
         if (newQuantity < 1) {
             showNotification('error', 'Jumlah produk minimal adalah 1. Gunakan tombol hapus untuk menghilangkan item.');
             return;
         }
 
-        // 2. Validasi Stok
         if (newQuantity > productStok) {
             showNotification('error', `Gagal: Stok produk (${currentItem.produk.nama_produk}) hanya tersisa ${productStok}.`);
             return;
@@ -170,7 +211,6 @@ export default function KeranjangPagePembeli() {
 
         const newTotal = productPrice * newQuantity;
 
-        // 3. Update Database
         const { error: updateError } = await supabase
             .from('keranjang')
             .update({
@@ -185,16 +225,11 @@ export default function KeranjangPagePembeli() {
             return;
         }
 
-        // 4. Update State Lokal & Notifikasi Sukses
         showNotification('success', `Jumlah produk ${currentItem.produk.nama_produk} berhasil diubah menjadi ${newQuantity}.`);
-
-        // Panggil ulang fetch data untuk refresh tampilan total keseluruhan
         fetchCartItems();
     };
 
-    // ///////////////////////////////////////////////////////////////////////////////
-    // FUNGSI HAPUS ITEM KERANJANG
-    // ///////////////////////////////////////////////////////////////////////////////
+    // FUNGSI HAPUS ITEM KERANJANG - TIDAK BERUBAH
     const removeItem = async (itemId: string, productName: string) => {
         setNotification({ type: null, message: '' });
 
@@ -211,7 +246,6 @@ export default function KeranjangPagePembeli() {
                 return;
             }
 
-            // Update state lokal dan notifikasi
             showNotification('success', `Produk ${productName} berhasil dihapus dari keranjang.`);
             fetchCartItems();
         }
@@ -254,7 +288,7 @@ export default function KeranjangPagePembeli() {
                     <ShoppingBasket className="w-16 h-16 mx-auto text-gray-400 mb-4" />
                     <h1 className="text-2xl font-bold text-gray-900 mb-2">Keranjang Anda Kosong</h1>
                     <p className="text-gray-600 mb-6">Yuk, temukan produk menarik dari penjual di RT 12!</p>
-                    <Link href="/product" passHref>
+                    <Link href="/produk" passHref>
                         <Button className="bg-blue-600 hover:bg-blue-700">Mulai Belanja</Button>
                     </Link>
                 </div>
@@ -394,18 +428,21 @@ export default function KeranjangPagePembeli() {
 
                         {/* Action Buttons */}
                         <div className="flex flex-col sm:flex-row justify-between gap-3">
-                            <Link href="/product" passHref>
+                            <Link href="/produk" passHref>
                                 <Button variant="outline" className="flex items-center gap-2" >
                                     <ArrowLeft className="w-4 h-4" />
                                     Lanjutkan Berbelanja
                                 </Button>
                             </Link>
                             <div className="flex flex-col sm:flex-row gap-3">
-                                {/* Tombol Bersihkan - Belum aktif */}
+                                {/* Tombol Bersihkan */}
                                 <Button
                                     variant="outline"
-                                    className="border-red-500 text-red-500 hover:bg-red-50 opacity-50 cursor-not-allowed"
+                                    className="border-red-500 text-red-500 hover:bg-red-50"
+                                    onClick={() => setIsClearCartDialogOpen(true)} // Tampilkan dialog
+                                    disabled={cartItems.length === 0}
                                 >
+                                    <Trash2 className="w-4 h-4 mr-2" />
                                     Bersihkan Keranjang
                                 </Button>
                             </div>
@@ -467,6 +504,31 @@ export default function KeranjangPagePembeli() {
                     </div>
                 </div>
             </div>
+
+            {/* ////////////////////////////////////////////////////////////////////////////////
+                ALERT DIALOG KONFIRMASI BERSIHKAN KERANJANG
+            //////////////////////////////////////////////////////////////////////////////// */}
+            <AlertDialog open={isClearCartDialogOpen} onOpenChange={setIsClearCartDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center text-xl text-red-600">
+                            <Trash2 className='w-6 h-6 mr-2' /> Konfirmasi Bersihkan Keranjang
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Apakah Anda yakin ingin **menghapus semua** ({cartItems.length} item) produk dari keranjang belanja Anda? Tindakan ini tidak dapat dibatalkan.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleClearCart}
+                            className='bg-red-600 hover:bg-red-700'
+                        >
+                            Ya, Bersihkan Sekarang
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </MainLayoutPembeli>
     );
 }
