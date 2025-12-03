@@ -192,10 +192,29 @@ export default function KeranjangPagePembeli() {
         fetchCartItems();
     };
 
-    // Fungsi Dummy Hapus Item (Akan diaktifkan di revisi selanjutnya)
-    const removeItem = (id: string) => {
-        // Logika hapus akan diimplementasikan nanti
-        console.log("Hapus item:", id);
+    // ///////////////////////////////////////////////////////////////////////////////
+    // FUNGSI HAPUS ITEM KERANJANG
+    // ///////////////////////////////////////////////////////////////////////////////
+    const removeItem = async (itemId: string, productName: string) => {
+        setNotification({ type: null, message: '' });
+
+        if (window.confirm(`Apakah Anda yakin ingin menghapus produk "${productName}" dari keranjang?`)) {
+
+            const { error: deleteError } = await supabase
+                .from('keranjang')
+                .delete()
+                .eq('id', itemId);
+
+            if (deleteError) {
+                console.error("Error deleting item:", deleteError);
+                showNotification('error', `Gagal menghapus item: ${deleteError.message}`);
+                return;
+            }
+
+            // Update state lokal dan notifikasi
+            showNotification('success', `Produk ${productName} berhasil dihapus dari keranjang.`);
+            fetchCartItems();
+        }
     };
 
     // --- Logika Perhitungan Total ---
@@ -235,7 +254,7 @@ export default function KeranjangPagePembeli() {
                     <ShoppingBasket className="w-16 h-16 mx-auto text-gray-400 mb-4" />
                     <h1 className="text-2xl font-bold text-gray-900 mb-2">Keranjang Anda Kosong</h1>
                     <p className="text-gray-600 mb-6">Yuk, temukan produk menarik dari penjual di RT 12!</p>
-                    <Link href="/produk" passHref>
+                    <Link href="/product" passHref>
                         <Button className="bg-blue-600 hover:bg-blue-700">Mulai Belanja</Button>
                     </Link>
                 </div>
@@ -295,9 +314,9 @@ export default function KeranjangPagePembeli() {
 
                                 {/* Tombol Silang (X) di pojok kanan atas */}
                                 <button
-                                    onClick={() => removeItem(item.id)}
+                                    onClick={() => removeItem(item.id, item.produk.nama_produk)}
                                     className="absolute top-2 right-2 text-gray-400 hover:text-red-600"
-                                    title="Hapus item (belum aktif)"
+                                    title={`Hapus ${item.produk.nama_produk}`}
                                 >
                                     <X className="w-5 h-5" />
                                 </button>
@@ -339,7 +358,7 @@ export default function KeranjangPagePembeli() {
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => updateQuantity(item.id, item, -1)}
-                                                    disabled={item.jumlah_produk_dipilih <= 1} // Disable jika sudah 1
+                                                    disabled={item.jumlah_produk_dipilih <= 1}
                                                     className="h-10 w-10 p-0 hover:bg-gray-100"
                                                 >
                                                     <Minus className="w-4 h-4" />
@@ -352,7 +371,7 @@ export default function KeranjangPagePembeli() {
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => updateQuantity(item.id, item, 1)}
-                                                    disabled={item.jumlah_produk_dipilih >= item.produk.stok} // Disable jika sudah mencapai stok
+                                                    disabled={item.jumlah_produk_dipilih >= item.produk.stok}
                                                     className="h-10 w-10 p-0 hover:bg-gray-100"
                                                 >
                                                     <Plus className="w-4 h-4" />
@@ -375,17 +394,17 @@ export default function KeranjangPagePembeli() {
 
                         {/* Action Buttons */}
                         <div className="flex flex-col sm:flex-row justify-between gap-3">
-                            <Link href="/produk" passHref>
+                            <Link href="/product" passHref>
                                 <Button variant="outline" className="flex items-center gap-2" >
                                     <ArrowLeft className="w-4 h-4" />
                                     Lanjutkan Berbelanja
                                 </Button>
                             </Link>
                             <div className="flex flex-col sm:flex-row gap-3">
+                                {/* Tombol Bersihkan - Belum aktif */}
                                 <Button
                                     variant="outline"
                                     className="border-red-500 text-red-500 hover:bg-red-50 opacity-50 cursor-not-allowed"
-                                // onClick={handleClearCart} // Akan diimplementasikan di revisi selanjutnya
                                 >
                                     Bersihkan Keranjang
                                 </Button>
