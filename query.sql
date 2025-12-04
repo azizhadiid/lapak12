@@ -633,3 +633,85 @@ WITH CHECK (
 -- /////////////////////////////////////////////////////////////////////////////////
 -- End Tabel Keranjang
 -- /////////////////////////////////////////////////////////////////////////////////
+
+-- /////////////////////////////////////////////////////////////////////////////////
+-- BAGIAN BARU: TABEL ULASAN (RATING & REVIEW)
+-- /////////////////////////////////////////////////////////////////////////////////
+
+-- /////////////////////////////////////////////////////////////////////////////////
+-- ULASAN REVISI: Mengizinkan Banyak Ulasan per Pembeli per Produk
+-- /////////////////////////////////////////////////////////////////////////////////
+
+-- 1. Hapus batasan UNIQUE yang sudah ada (jika sudah ada)
+ALTER TABLE public.ulasan DROP CONSTRAINT IF EXISTS ulasan_pembeli_id_produk_id_key;
+
+-- 2. Hapus dan buat ulang tabel ulasan tanpa batasan UNIQUE (pembeli_id, produk_id)
+DROP TABLE IF EXISTS public.ulasan CASCADE;
+
+CREATE TABLE IF NOT EXISTS public.ulasan (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+
+    -- FK 1: Ke ID Produk yang diulas
+    produk_id UUID REFERENCES public.produk(id) ON DELETE CASCADE NOT NULL,
+
+    -- FK 2: Ke ID Pembeli yang memberikan ulasan
+    pembeli_id UUID REFERENCES public.profile_pembeli(id) ON DELETE CASCADE NOT NULL,
+
+    -- Kolom Data Ulasan
+    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5), -- Rating 1 sampai 5
+    ungkapan_ulasan TEXT, -- Kolom untuk teks ulasan (opsional)
+
+    -- CATATAN: UNIQUE (pembeli_id, produk_id) DIHAPUS
+
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 3. Tambahkan Index untuk optimasi pencarian ulasan berdasarkan produk
+CREATE INDEX IF NOT EXISTS ulasan_produk_id_idx ON public.ulasan (produk_id);
+CREATE INDEX IF NOT EXISTS ulasan_pembeli_id_idx ON public.ulasan (pembeli_id);
+
+-- 4. Aktifkan Row Level Security (RLS) - Tidak berubah, tapi perlu diulang karena DROP TABLE
+ALTER TABLE public.ulasan ENABLE ROW LEVEL SECURITY;
+
+-- Polisi RLS (Tidak Berubah: INSERT, SELECT, UPDATE, DELETE)
+-- Pembeli bisa membuat ulasan sendiri
+CREATE POLICY "Pembeli bisa membuat ulasan sendiri"
+ON public.ulasan
+FOR INSERT
+WITH CHECK (
+    auth.uid() = pembeli_id AND
+    public.get_my_role() = 'pembeli'
+);
+
+-- Semua user bisa melihat semua ulasan
+CREATE POLICY "Semua user bisa melihat semua ulasan"
+ON public.ulasan
+FOR SELECT
+USING (
+    true
+);
+
+-- Pembeli bisa mengupdate ulasan mereka sendiri
+CREATE POLICY "Pembeli bisa mengupdate ulasan sendiri"
+ON public.ulasan
+FOR UPDATE
+USING (
+    auth.uid() = pembeli_id AND
+    public.get_my_role() = 'pembeli'
+)
+WITH CHECK (
+    auth.uid() = pembeli_id
+);
+
+-- Pembeli bisa menghapus ulasan mereka sendiri
+CREATE POLICY "Pembeli bisa menghapus ulasan sendiri"
+ON public.ulasan
+FOR DELETE
+USING (
+    auth.uid() = pembeli_id AND
+    public.get_my_role() = 'pembeli'
+);
+
+-- /////////////////////////////////////////////////////////////////////////////////
+-- End TABEL ULASAN
+-- /////////////////////////////////////////////////////////////////////////////////

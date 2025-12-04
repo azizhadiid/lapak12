@@ -1,12 +1,12 @@
 "use client"
 
-import React, { useEffect, useState } from 'react';
-import { Star, ShoppingCart, Plus, Minus, Store, ThumbsUp, MessageSquare, Clock, ArrowLeft, CheckCircle, Phone, DollarSign, XCircle, Package, AlertCircle } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Star, ShoppingCart, Plus, Minus, Store, ThumbsUp, MessageSquare, Clock, ArrowLeft, CheckCircle, Phone, DollarSign, XCircle, Package, AlertCircle, Send, Loader2 } from 'lucide-react'; // Tambah Loader2
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import MainLayoutPembeli from "../MainLayoutPembeli";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
@@ -25,19 +25,29 @@ import {
 // Import komponen Shadcn UI untuk Notifikasi
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-
-interface Comment {
-    id: number;
-    name: string;
+// =========================================================================
+// INTERFACE BARU UNTUK ULASAN DARI DATABASE
+// *Menggunakan alias 'ulasan_pembeli' untuk mengatasi PGRST201*
+// =========================================================================
+interface Review {
+    id: string;
     rating: number;
-    date: string;
-    text: string;
+    ungkapan_ulasan: string | null;
+    created_at: string;
+    // Data dari Join (menggunakan alias 'ulasan_pembeli')
+    ulasan_pembeli: { // Ganti 'profile_pembeli' menjadi 'ulasan_pembeli'
+        full_name: string | null;
+        foto_url: string | null;
+        users: { // Data dari users (karena profile_pembeli.id -> users.id)
+            username: string;
+        }
+    } | null;
 }
 
 // Interface untuk data produk yang lebih jelas
 interface ProductData {
     id: string;
-    penjual_id: string; // Tambahkan penjual_id
+    penjual_id: string;
     nama_produk: string;
     harga: number;
     gambar: string | null;
@@ -72,16 +82,15 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
     const [errorMessage, setErrorMessage] = useState<string>('');
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-    // State Notifikasi Keranjang
+    // State Notifikasi Keranjang/Umum
     const [notification, setNotification] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
 
-    // untuk comment
-    const [comment, setComment] = useState<string>('');
-    const [rating, setRating] = useState<number>(0);
-    const [comments, setComments] = useState<Comment[]>([
-        { id: 1, name: 'Budi Santoso', rating: 5, date: '2 hari yang lalu', text: 'Indomie goreng terbaik! Rasanya authentic dan bumbu lengkap. Pengiriman cepat.' },
-        { id: 2, name: 'Siti Nurhaliza', rating: 5, date: '1 minggu yang lalu', text: 'Selalu beli di sini, stok selalu fresh dan harga terjangkau.' }
-    ]);
+    // State untuk Ulasan
+    const [reviewText, setReviewText] = useState<string>('');
+    const [reviewRating, setReviewRating] = useState<number>(0);
+    const [reviews, setReviews] = useState<Review[]>([]);
+    const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
 
     // FUNGSI UTAMA
     const formatPrice = (price: number | string | undefined): string => {
@@ -106,9 +115,124 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
         setTimeout(() => setNotification({ type: null, message: '' }), 5000);
     };
 
+    // Helper untuk format tanggal ulasan
+    const timeSince = (dateString: string): string => {
+        const date = new Date(dateString);
+        const now = new Date();
+        const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+        let interval = seconds / 31536000;
+        if (interval > 1) return Math.floor(interval) + " tahun yang lalu";
+        interval = seconds / 2592000;
+        if (interval > 1) return Math.floor(interval) + " bulan yang lalu";
+        interval = seconds / 86400;
+        if (interval > 1) return Math.floor(interval) + " hari yang lalu";
+        interval = seconds / 3600;
+        if (interval > 1) return Math.floor(interval) + " jam yang lalu";
+        interval = seconds / 60;
+        if (interval > 1) return Math.floor(interval) + " menit yang lalu";
+        return Math.floor(seconds) + " detik yang lalu";
+    }
 
     // ///////////////////////////////////////////////////////////////////////////////
-    // LOGIKA TAMBAH KE KERANJANG BARU (Menggantikan tombol 'Tambah ke Keranjang')
+    // LOGIKA SUBMIT ULASAN BARU (REVISI: Ganti UPSERT ke INSERT)
+    // ///////////////////////////////////////////////////////////////////////////////
+    const handleSubmitReview = async () => {
+        if (!userProfile || !product) {
+            showNotification('error', 'Anda harus login dan produk harus valid untuk memberikan ulasan.');
+            return;
+        }
+        if (reviewRating === 0) {
+            showNotification('error', 'Rating harus diberikan (minimal 1 bintang).');
+            return;
+        }
+
+        setIsSubmittingReview(true);
+        const pembeli_id = userProfile.id;
+        const produk_id = product.id;
+
+        const { error } = await supabase
+            .from('ulasan')
+            .insert({ // <--- Menggunakan INSERT untuk menambah baris baru
+                pembeli_id: pembeli_id,
+                produk_id: produk_id,
+                rating: reviewRating,
+                ungkapan_ulasan: reviewText.trim() || null,
+            });
+        // Hapus: onConflict: 'pembeli_id, produk_id'
+
+        setIsSubmittingReview(false);
+
+        if (error) {
+            console.error("Gagal mengirim ulasan:", error);
+            showNotification('error', `Gagal mengirim ulasan: ${error.message}.`);
+            return;
+        }
+
+        showNotification('success', 'Ulasan berhasil terkirim!');
+        setReviewText('');
+        setReviewRating(0);
+
+        fetchReviews(product.id);
+    };
+
+    // ///////////////////////////////////////////////////////////////////////////////
+    // LOGIKA FETCH ULASAN 
+    // ///////////////////////////////////////////////////////////////////////////////
+    const fetchReviews = useCallback(async (productId: string) => {
+        if (!productId) return;
+
+        try {
+            const { data, error } = await supabase
+                .from('ulasan')
+                .select(`
+                    id,
+                    rating,
+                    ungkapan_ulasan,
+                    created_at,
+                    ulasan_pembeli:pembeli_id (
+                        full_name,
+                        foto_url,
+                        users (username)
+                    )
+                `)
+                .eq('produk_id', productId)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            // Mapping data agar sesuai interface Review
+            const mappedReviews: Review[] = (data || []).map(r => {
+                const rawProfile = r.ulasan_pembeli as any;
+
+                // Pastikan profile_pembeli adalah objek
+                const profile = Array.isArray(rawProfile) ? rawProfile[0] : rawProfile;
+
+                return {
+                    id: r.id,
+                    rating: r.rating,
+                    ungkapan_ulasan: r.ungkapan_ulasan,
+                    created_at: r.created_at,
+                    ulasan_pembeli: profile ? {
+                        full_name: profile.full_name as string | null,
+                        foto_url: profile.foto_url as string | null,
+                        users: {
+                            username: profile.users.username as string,
+                        }
+                    } : null
+                };
+            });
+
+            setReviews(mappedReviews);
+
+        } catch (err) {
+            console.error("Error fetching reviews:", err);
+        }
+    }, [supabase]);
+
+
+    // ///////////////////////////////////////////////////////////////////////////////
+    // LOGIKA KERANJANG & BELI (Tidak berubah)
     // ///////////////////////////////////////////////////////////////////////////////
     const handleAddToCart = async () => {
         setNotification({ type: null, message: '' });
@@ -130,7 +254,7 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
 
         const user_id = userProfile.id;
         const produk_id = product.id;
-        const jumlah_produk_dipilih = quantity; // Menggunakan quantity dari state
+        const jumlah_produk_dipilih = quantity;
         const total_harga_item = product.harga * jumlah_produk_dipilih;
         const new_store_name = product.profile_penjual?.store_name || "Toko Tidak Dikenal";
         const new_penjual_id = product.penjual_id;
@@ -140,7 +264,6 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
         // 1. VALIDASI TOKO BERBEDA (BUSINESS LOGIC)
         // =========================================================================
 
-        // Ambil ID Penjual (toko) dari semua item yang sudah ada di keranjang user
         const { data: cartItems, error: cartError } = await supabase
             .from('keranjang')
             .select(`
@@ -156,12 +279,10 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
         }
 
         if (cartItems && cartItems.length > 0) {
-            // Ambil ID Penjual pertama yang ada di keranjang
             const firstCartItem = cartItems[0];
             const existing_penjual_id = (firstCartItem.produk as any).penjual_id;
             const existing_store_name = ((firstCartItem.produk as any).profile_penjual as any)?.store_name;
 
-            // Cek apakah produk baru berasal dari toko yang berbeda
             if (existing_penjual_id && existing_penjual_id !== new_penjual_id) {
                 showNotification('error', `Produk harus dari toko yang sama. Keranjang Anda sudah berisi produk dari toko ${existing_store_name}.`);
                 return;
@@ -172,11 +293,9 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
         // 2. INSERT atau UPDATE (UPSERT)
         // =========================================================================
 
-        // Cek apakah produk sudah ada di keranjang
         const existingItem = cartItems?.find(item => item.produk_id === produk_id);
 
         if (existingItem) {
-            // Jika produk sudah ada, kita harus mengambil jumlah lama untuk diupdate.
             const { data: currentItem, error: fetchError } = await supabase
                 .from('keranjang')
                 .select('jumlah_produk_dipilih')
@@ -190,21 +309,18 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
                 return;
             }
 
-            // Jumlah total yang baru (lama + quantity yang baru dipilih)
             const new_total_quantity = currentItem.jumlah_produk_dipilih + jumlah_produk_dipilih;
 
-            // Cek Stok lagi setelah penambahan
             if (new_total_quantity > product.stok) {
                 showNotification('error', `Gagal: Stok hanya tersisa ${product.stok}. Jumlah total di keranjang akan melebihi stok.`);
                 return;
             }
 
-            // Lakukan UPDATE
             const { error: updateError } = await supabase
                 .from('keranjang')
                 .update({
                     jumlah_produk_dipilih: new_total_quantity,
-                    total: product.harga * new_total_quantity, // Hitung ulang total
+                    total: product.harga * new_total_quantity,
                 })
                 .eq('user_id', user_id)
                 .eq('produk_id', produk_id);
@@ -218,7 +334,6 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
             showNotification('success', `Jumlah ${product.nama_produk} di keranjang berhasil ditambahkan menjadi ${new_total_quantity}!`);
 
         } else {
-            // Jika produk belum ada, lakukan INSERT
             const { error: insertError } = await supabase
                 .from('keranjang')
                 .insert({
@@ -237,31 +352,25 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
             showNotification('success', `Produk ${product.nama_produk} berhasil ditambahkan ke keranjang! Toko: ${new_store_name}`);
         }
     };
-    // ///////////////////////////////////////////////////////////////////////////////
-    // END LOGIKA TAMBAH KE KERANJANG BARU
-    // ///////////////////////////////////////////////////////////////////////////////
 
 
-
-    // LOGIKA PEMBELIAN (Hanya menampilkan dialog) - TIDAK BERUBAH DARI REVISI TERAKHIR
+    // LOGIKA PEMBELIAN & KONFIRMASI WA - TIDAK BERUBAH
     const handleBuyNow = () => {
         if (!product) return;
         if (quantity > product.stok) {
             showNotification('error', "Stok tidak mencukupi!");
             return;
         }
-        setTransactionStatus('idle'); // Reset status sebelum buka dialog
-        setIsDialogOpen(true); // Tampilkan dialog konfirmasi/bill
+        setTransactionStatus('idle');
+        setIsDialogOpen(true);
     };
 
-    // LOGIKA KONFIRMASI (LANGSUNG KE WA, TANPA DB) - TIDAK BERUBAH DARI REVISI TERAKHIR
     const confirmPayment = async () => {
         if (!product || !userProfile) {
             setErrorMessage("Data produk atau profil pengguna tidak lengkap.");
             setTransactionStatus('error');
             return;
         }
-
         setTransactionStatus('processing');
         setErrorMessage('');
 
@@ -299,11 +408,12 @@ Mohon konfirmasi pesanan saya. Terima kasih.
     };
 
 
-    // FETCH PRODUCT & USER DATA
+    // FETCH DATA
     useEffect(() => {
         async function fetchData() {
             setLoading(true);
             const { data: { session } } = await supabase.auth.getSession();
+            const productId = params.id;
 
             if (!session) {
                 console.error("User belum login.");
@@ -329,7 +439,7 @@ Mohon konfirmasi pesanan saya. Terima kasih.
             }
 
             // 2. Fetch Product Data
-            if (!params.id) {
+            if (!productId) {
                 console.error("ID Produk tidak ditemukan di params.");
                 setLoading(false);
                 return;
@@ -353,7 +463,7 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                         status
                     )
                 `)
-                .eq("id", params.id)
+                .eq("id", productId)
                 .single();
 
 
@@ -363,14 +473,13 @@ Mohon konfirmasi pesanan saya. Terima kasih.
             }
 
             if (data) {
-                // Mapping dan penyesuaian tipe data
                 const rawProfile = Array.isArray(data.profile_penjual)
                     ? data.profile_penjual[0]
                     : data.profile_penjual;
 
                 const productData: ProductData = {
                     id: data.id,
-                    penjual_id: data.penjual_id, // Pastikan ini masuk
+                    penjual_id: data.penjual_id,
                     nama_produk: data.nama_produk,
                     harga: parseFloat(data.harga as string),
                     gambar: data.gambar,
@@ -385,6 +494,10 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                     } : null,
                 };
                 setProduct(productData);
+
+                // 3. Panggil Fetch Ulasan
+                fetchReviews(productId);
+
             } else {
                 setProduct(null);
             }
@@ -393,38 +506,28 @@ Mohon konfirmasi pesanan saya. Terima kasih.
         }
 
         fetchData();
-    }, [params.id, supabase]);
+    }, [params.id, supabase, fetchReviews]);
 
-    // ... (Logika Comment/Rating) ...
-    const handleSubmitComment = () => {
-        if (comment.trim() && rating > 0) {
-            const newComment: Comment = {
-                id: comments.length + 1,
-                name: 'Anda',
-                rating: rating,
-                date: 'Baru saja',
-                text: comment
-            };
-            setComments([newComment, ...comments]);
-            setComment('');
-            setRating(0);
-        }
-    };
-
-    const renderStars = (count: number, interactive: boolean = false, size: string = 'w-5 h-5') => {
+    // RENDER STARS (FUNGSI TIDAK BERUBAH)
+    const renderStars = (count: number, interactive: boolean = false, size: string = 'w-5 h-5', ratingValue: number = 0) => {
         return (
             <div className="flex gap-1">
                 {[1, 2, 3, 4, 5].map((star) => (
                     <Star
                         key={star}
-                        className={`${size} ${star <= count ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'} ${interactive ? 'cursor-pointer hover:fill-yellow-400 hover:text-yellow-400' : ''}`}
-                        onClick={() => interactive && setRating(star)}
+                        className={`${size} ${star <= (interactive ? ratingValue : count) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'} ${interactive ? 'cursor-pointer hover:fill-yellow-400 hover:text-yellow-400' : ''}`}
+                        onClick={() => interactive && setReviewRating(star)}
                     />
                 ))}
             </div>
         );
     };
-    // ... (Akhir Logika Comment/Rating) ...
+
+    // HITUNG RATA-RATA RATING & TOTAL ULASAN
+    const totalRatingSum = reviews.reduce((sum, review) => sum + review.rating, 0);
+    const averageRating = reviews.length > 0
+        ? (totalRatingSum / reviews.length).toFixed(1)
+        : '0.0';
 
     if (loading) {
         return (
@@ -441,22 +544,12 @@ Mohon konfirmasi pesanan saya. Terima kasih.
         return (
             <MainLayoutPembeli>
                 <div className="p-10 text-center text-xl text-red-600">
-                    Produk tidak ditemukan, mungkin ID salah, atau Anda belum login.
+                    Produk tidak ditemukan, mungkin ID salah.
                 </div>
             </MainLayoutPembeli>
         );
     }
 
-    // Pengecekan status user
-    if (!userProfile) {
-        return (
-            <MainLayoutPembeli>
-                <div className="p-10 text-center text-xl text-red-600">
-                    Error: Profil pembeli tidak ditemukan. Pastikan Anda sudah login.
-                </div>
-            </MainLayoutPembeli>
-        );
-    }
 
     // HITUNG TOTAL BILL
     const totalBill = product.harga * quantity;
@@ -524,9 +617,14 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                                         {product.profile_penjual?.store_name || "Toko Tidak Dikenal"}
                                     </Badge>
                                     <h1 className="text-4xl font-bold text-gray-900 mb-3">{product.nama_produk}</h1>
+
+                                    {/* RATING DISPLAY BARU */}
                                     <div className="flex items-center gap-2 mb-4">
-                                        {renderStars(5)}
-                                        <span className="text-sm text-gray-600">(5.0) • 247 ulasan</span>
+                                        <span className="text-2xl font-bold text-yellow-500">{averageRating}</span>
+                                        {renderStars(0, false, 'w-5 h-5', parseFloat(averageRating))}
+                                        <span className="text-sm text-gray-600">
+                                            ({reviews.length} ulasan)
+                                        </span>
                                     </div>
                                 </div>
 
@@ -581,7 +679,7 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                                         variant="outline"
                                         className="flex-1 py-4 text-lg"
                                         size="lg"
-                                        onClick={handleAddToCart} // Menggunakan fungsi baru
+                                        onClick={handleAddToCart}
                                         disabled={product.stok === 0 || !userProfile || quantity === 0}
                                     >
                                         Tambah ke Keranjang
@@ -629,66 +727,93 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                     </CardContent>
                 </Card>
 
-                {/* Comments Section (tetap seperti aslinya) */}
+                {/* Comments Section (ULASAN BARU) */}
                 <Card className="shadow-lg">
-                    {/* ... (Konten Comments Section) */}
                     <CardHeader>
                         <CardTitle className="text-2xl flex items-center gap-2">
                             <MessageSquare className="w-6 h-6" />
-                            Ulasan Pembeli ({comments.length})
+                            Ulasan Pembeli ({reviews.length})
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        {/* Add Comment */}
+                        {/* Add Comment FORM */}
                         <div className="bg-gray-50 p-6 rounded-lg space-y-4">
                             <h3 className="font-semibold text-gray-900">Berikan Ulasan Anda</h3>
-                            <div>
-                                <label className="text-sm text-gray-600 mb-2 block">Rating</label>
-                                {renderStars(rating, true, 'w-8 h-8')}
-                            </div>
-                            <Textarea
-                                placeholder="Bagikan pengalaman Anda dengan produk ini..."
-                                value={comment}
-                                onChange={(e) => setComment(e.target.value)}
-                                className="min-h-[100px]"
-                            />
-                            <Button
-                                onClick={handleSubmitComment}
-                                disabled={!comment.trim() || rating === 0}
-                                className="bg-blue-600 hover:bg-blue-700"
-                            >
-                                Kirim Ulasan
-                            </Button>
+
+                            {!userProfile ? (
+                                <Alert variant="default" className="text-center text-sm">
+                                    Silakan login untuk dapat memberikan ulasan pada produk ini.
+                                </Alert>
+                            ) : (
+                                <>
+                                    <div>
+                                        <label className="text-sm text-gray-600 mb-2 block">Rating (1-5)</label>
+                                        {renderStars(0, true, 'w-8 h-8', reviewRating)}
+                                    </div>
+                                    <Textarea
+                                        placeholder="Bagikan pengalaman Anda dengan produk ini..."
+                                        value={reviewText}
+                                        onChange={(e) => setReviewText(e.target.value)}
+                                        className="min-h-[100px]"
+                                        disabled={isSubmittingReview}
+                                    />
+                                    <Button
+                                        onClick={handleSubmitReview}
+                                        disabled={isSubmittingReview || reviewRating === 0}
+                                        className="bg-blue-600 hover:bg-blue-700"
+                                    >
+                                        {isSubmittingReview ? (
+                                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                        ) : (
+                                            <Send className="w-5 h-5 mr-2" />
+                                        )}
+                                        Kirim Ulasan
+                                    </Button>
+                                </>
+                            )}
                         </div>
 
                         {/* Comments List */}
                         <div className="space-y-4">
-                            {comments.map((c) => (
-                                <div key={c.id} className="border-b pb-4 last:border-b-0">
-                                    <div className="flex items-start gap-3">
-                                        <Avatar>
-                                            <AvatarFallback className="bg-blue-500 text-white">
-                                                {c.name.charAt(0)}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        <div className="flex-1">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div>
-                                                    <h4 className="font-semibold text-gray-900">{c.name}</h4>
-                                                    <div className="flex items-center gap-2">
-                                                        {renderStars(c.rating, false, 'w-4 h-4')}
+                            {reviews.map((review) => {
+                                const reviewerName = review.ulasan_pembeli?.full_name
+                                    || review.ulasan_pembeli?.users.username
+                                    || 'Pengguna Anonim';
+                                const reviewerPhoto = review.ulasan_pembeli?.foto_url;
+
+                                return (
+                                    <div key={review.id} className="border-b pb-4 last:border-b-0">
+                                        <div className="flex items-start gap-3">
+                                            <Avatar>
+                                                {reviewerPhoto && <AvatarImage src={reviewerPhoto} alt={reviewerName} />}
+                                                <AvatarFallback className="bg-blue-500 text-white">
+                                                    {reviewerName.charAt(0)}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex-1">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div>
+                                                        <h4 className="font-semibold text-gray-900">{reviewerName}</h4>
+                                                        <div className="flex items-center gap-2">
+                                                            {renderStars(review.rating, false, 'w-4 h-4')}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 text-sm text-gray-500">
+                                                        <Clock className="w-4 h-4" />
+                                                        {timeSince(review.created_at)}
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-1 text-sm text-gray-500">
-                                                    <Clock className="w-4 h-4" />
-                                                    {c.date}
-                                                </div>
+                                                <p className="text-gray-700">
+                                                    {review.ungkapan_ulasan || "*Tidak ada teks ulasan.*"}
+                                                </p>
                                             </div>
-                                            <p className="text-gray-700">{c.text}</p>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                )
+                            })}
+                            {reviews.length === 0 && (
+                                <p className="text-center text-gray-500 italic p-4">Belum ada ulasan untuk produk ini.</p>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
