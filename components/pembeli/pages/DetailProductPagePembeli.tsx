@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { Star, ShoppingCart, Plus, Minus, Store, ThumbsUp, MessageSquare, Clock, ArrowLeft, CheckCircle, Phone, DollarSign, XCircle, Package, AlertCircle, Send, Loader2 } from 'lucide-react'; // Tambah Loader2
+import { Star, ShoppingCart, Plus, Minus, Store, MessageSquare, Clock, ArrowLeft, CheckCircle, Phone, DollarSign, XCircle, Package, AlertCircle, Send, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,8 +26,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // =========================================================================
-// INTERFACE BARU UNTUK ULASAN DARI DATABASE
-// *Menggunakan alias 'ulasan_pembeli' untuk mengatasi PGRST201*
+// INTERFACE UNTUK ULASAN DARI DATABASE
 // =========================================================================
 interface Review {
     id: string;
@@ -35,10 +34,10 @@ interface Review {
     ungkapan_ulasan: string | null;
     created_at: string;
     // Data dari Join (menggunakan alias 'ulasan_pembeli')
-    ulasan_pembeli: { // Ganti 'profile_pembeli' menjadi 'ulasan_pembeli'
+    ulasan_pembeli: {
         full_name: string | null;
         foto_url: string | null;
-        users: { // Data dari users (karena profile_pembeli.id -> users.id)
+        users: {
             username: string;
         }
     } | null;
@@ -135,7 +134,7 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
     }
 
     // ///////////////////////////////////////////////////////////////////////////////
-    // LOGIKA SUBMIT ULASAN BARU (REVISI: Ganti UPSERT ke INSERT)
+    // LOGIKA SUBMIT ULASAN BARU
     // ///////////////////////////////////////////////////////////////////////////////
     const handleSubmitReview = async () => {
         if (!userProfile || !product) {
@@ -153,13 +152,12 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
 
         const { error } = await supabase
             .from('ulasan')
-            .insert({ // <--- Menggunakan INSERT untuk menambah baris baru
+            .insert({ // Menggunakan INSERT untuk menambah baris baru
                 pembeli_id: pembeli_id,
                 produk_id: produk_id,
                 rating: reviewRating,
                 ungkapan_ulasan: reviewText.trim() || null,
             });
-        // Hapus: onConflict: 'pembeli_id, produk_id'
 
         setIsSubmittingReview(false);
 
@@ -190,10 +188,12 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
                     rating,
                     ungkapan_ulasan,
                     created_at,
-                    ulasan_pembeli:pembeli_id (
+                    profile_pembeli:pembeli_id (
                         full_name,
                         foto_url,
-                        users (username)
+                        users (
+                            username
+                        )
                     )
                 `)
                 .eq('produk_id', productId)
@@ -203,7 +203,7 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
 
             // Mapping data agar sesuai interface Review
             const mappedReviews: Review[] = (data || []).map(r => {
-                const rawProfile = r.ulasan_pembeli as any;
+                const rawProfile = r.profile_pembeli as any;
 
                 // Pastikan profile_pembeli adalah objek
                 const profile = Array.isArray(rawProfile) ? rawProfile[0] : rawProfile;
@@ -508,14 +508,17 @@ Mohon konfirmasi pesanan saya. Terima kasih.
         fetchData();
     }, [params.id, supabase, fetchReviews]);
 
-    // RENDER STARS (FUNGSI TIDAK BERUBAH)
+    // RENDER STARS (FUNGSI PERBAIKAN BINTANG RATA-RATA)
     const renderStars = (count: number, interactive: boolean = false, size: string = 'w-5 h-5', ratingValue: number = 0) => {
+        const displayValue = interactive ? ratingValue : count;
+
         return (
             <div className="flex gap-1">
                 {[1, 2, 3, 4, 5].map((star) => (
                     <Star
                         key={star}
-                        className={`${size} ${star <= (interactive ? ratingValue : count) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'} ${interactive ? 'cursor-pointer hover:fill-yellow-400 hover:text-yellow-400' : ''}`}
+                        // Jika bukan interaktif (display rata-rata), gunakan fill/text-yellow-400 jika star <= displayValue
+                        className={`${size} ${star <= displayValue ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'} ${interactive ? 'cursor-pointer hover:fill-yellow-400 hover:text-yellow-400' : ''}`}
                         onClick={() => interactive && setReviewRating(star)}
                     />
                 ))}
@@ -618,10 +621,11 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                                     </Badge>
                                     <h1 className="text-4xl font-bold text-gray-900 mb-3">{product.nama_produk}</h1>
 
-                                    {/* RATING DISPLAY BARU */}
+                                    {/* RATING DISPLAY BARU (PERBAIKAN BINTANG) */}
                                     <div className="flex items-center gap-2 mb-4">
                                         <span className="text-2xl font-bold text-yellow-500">{averageRating}</span>
-                                        {renderStars(0, false, 'w-5 h-5', parseFloat(averageRating))}
+                                        {/* Perbaikan: Menggunakan averageRating untuk mengisi bintang */}
+                                        {renderStars(parseFloat(averageRating), false, 'w-5 h-5')}
                                         <span className="text-sm text-gray-600">
                                             ({reviews.length} ulasan)
                                         </span>
@@ -776,6 +780,7 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                         {/* Comments List */}
                         <div className="space-y-4">
                             {reviews.map((review) => {
+                                // Fallback Logic yang disederhanakan: full_name -> username -> Pengguna Anonim
                                 const reviewerName = review.ulasan_pembeli?.full_name
                                     || review.ulasan_pembeli?.users.username
                                     || 'Pengguna Anonim';

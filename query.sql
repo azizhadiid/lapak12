@@ -712,6 +712,22 @@ USING (
     public.get_my_role() = 'pembeli'
 );
 
+
+-- Buat kebijakan baru: Semua user bisa melihat data profil (untuk ulasan)
+CREATE POLICY "Semua user bisa melihat nama dan foto pembeli"
+ON public.profile_pembeli
+FOR SELECT
+USING (
+    true -- Mengizinkan semua SELECT, termasuk dari JOIN tabel lain
+);
+
+-- Buat kebijakan baru: Semua user bisa melihat data user
+CREATE POLICY "Semua user bisa melihat data user"
+ON public.users
+FOR SELECT
+USING (
+    true
+);
 -- /////////////////////////////////////////////////////////////////////////////////
 -- End TABEL ULASAN
 -- /////////////////////////////////////////////////////////////////////////////////
