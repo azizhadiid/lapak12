@@ -1,7 +1,7 @@
-import Link from "next/link";
-import { BsInstagram } from "react-icons/bs";
-import { FaFacebook } from "react-icons/fa";
-import { FiTwitter } from "react-icons/fi";
+import { SiShopee } from "react-icons/si";
+import { FaInstagram, FaTiktok } from "react-icons/fa";
+import { FaSquareXTwitter } from "react-icons/fa6";
+import { FaFacebookSquare } from "react-icons/fa";
 
 export default function FooterLandingPage() {
     return (
@@ -11,34 +11,40 @@ export default function FooterLandingPage() {
                     <div className="grid grid-cols-2 gap-8 md:grid-cols-5">
                         {/* Kolom 1: Logo & Sosial Media */}
                         <div className="col-span-2 md:col-span-2">
-                            <Link href="/" className="flex flex-shrink-0 items-center gap-2">
-                                {/* Ganti <a> dengan <Link> untuk navigasi Next.js */}
+                            {/* Mengganti Link dengan <a> */}
+                            <a href="/" className="flex flex-shrink-0 items-center gap-2">
                                 <div className="flex items-center justify-center rounded-lg">
                                     <img
+                                        // Menggunakan placeholder yang lebih baik untuk logo
                                         src="/logo.png"
                                         alt="Lapak12 Logo"
                                         className="h-11 w-auto"
                                         onError={(e) => {
-                                            const target = e.currentTarget as HTMLImageElement;
-                                            target.src =
-                                                "https://placehold.co/100x44/cccccc/333333?text=Logo&font=sans";
-                                            target.alt = "Gagal memuat logo";
+                                            e.currentTarget.src =
+                                                "https://placehold.co/100x44/cccccc/333333?text=Logo";
+                                            e.currentTarget.alt = "Gagal memuat logo";
                                         }}
                                     />
                                 </div>
-                            </Link>
+                            </a>
                             <p className="mt-4 text-sm text-gray-600">
-                                Platform e-commarce RT 12.
+                                Platform e-commerce RT 12.
                             </p>
                             <div className="mt-6 flex gap-4">
+                                {/* Mengganti React Icons dengan Lucide Icons */}
                                 <a href="#" aria-label="Instagram">
-                                    <BsInstagram className="h-6 w-6 text-gray-400 hover:text-gray-900" />
+                                    <FaInstagram className="h-6 w-6 text-gray-400 hover:text-indigo-600 transition-colors" />
                                 </a>
-                                <a href="#" aria-label="Facebook">
-                                    <FaFacebook className="h-6 w-6 text-gray-400 hover:text-gray-900" />
+                                <a href="#" aria-label="Tiktok">
+                                    <FaTiktok className="h-6 w-6 text-gray-400 hover:text-indigo-600 transition-colors" />
                                 </a>
                                 <a href="#" aria-label="Twitter">
-                                    <FiTwitter className="h-6 w-6 text-gray-400 hover:text-gray-900" />
+                                    <FaSquareXTwitter className="h-6 w-6 text-gray-400 hover:text-indigo-600 transition-colors" />
+                                </a>
+                                <a href="#" aria-label="Facebook">
+                                    <FaFacebookSquare className="h-6 w-6 text-gray-400 hover:text-indigo-600 transition-colors" />
+                                </a><a href="#" aria-label="Shopee">
+                                    <SiShopee className="h-6 w-6 text-gray-400 hover:text-indigo-600 transition-colors" />
                                 </a>
                             </div>
                         </div>
@@ -47,9 +53,9 @@ export default function FooterLandingPage() {
                         <div>
                             <h3 className="text-sm font-semibold text-gray-900">Layanan</h3>
                             <ul className="mt-4 space-y-3 text-sm">
-                                <li><a href="#" className="text-gray-600 hover:text-gray-900">Bantuan</a></li>
-                                <li><a href="#" className="text-gray-600 hover:text-gray-900">Hubungi Kami</a></li>
-                                <li><a href="#" className="text-gray-600 hover:text-gray-900">Lacak Pesanan</a></li>
+                                <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">Bantuan</a></li>
+                                <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">Hubungi Kami</a></li>
+                                <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">Lacak Pesanan</a></li>
                             </ul>
                         </div>
 
@@ -57,29 +63,27 @@ export default function FooterLandingPage() {
                         <div>
                             <h3 className="text-sm font-semibold text-gray-900">Jelajahi</h3>
                             <ul className="mt-4 space-y-3 text-sm">
-                                <li><a href="#" className="text-gray-600 hover:text-gray-900">Tentang Kami</a></li>
-                                <li><a href="#" className="text-gray-600 hover:text-gray-900">Karir</a></li>
-                                <li><a href="#" className="text-gray-600 hover:text-gray-900">Blog</a></li>
+                                <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">Tentang Kami</a></li>
+                                <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">Karir</a></li>
+                                <li><a href="#" className="text-gray-600 hover:text-indigo-600 transition-colors">Blog</a></li>
                             </ul>
                         </div>
 
                         {/* Kolom 4: Pembayaran */}
                         <div>
                             <h3 className="text-sm font-semibold text-gray-900">Pembayaran</h3>
-                            {/* Di sini Anda bisa meletakkan ikon pembayaran seperti sebelumnya */}
                             <ul className="mt-4 space-y-3 text-sm">
                                 <li className="text-gray-600">QRIS</li>
                                 <li className="text-gray-600">DANA</li>
                                 <li className="text-gray-600">OVO</li>
-                                <li className="text-gray-600">GoPay</li>
+                                <li className="text-gray-600">BANKING</li>
                             </ul>
                         </div>
-
                     </div>
 
                     <div className="mt-12 border-t border-gray-100 pt-8 text-center">
                         <p className="text-sm text-gray-600">
-                            © Lapak12 2025. Hak Cipta Dilindungi
+                            © Lapak 12 2025. Hak Cipta Dilindungi
                         </p>
                     </div>
                 </div>
