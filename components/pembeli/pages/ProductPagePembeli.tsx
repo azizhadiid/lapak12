@@ -75,7 +75,7 @@ const ProductCard: React.FC<{ product: Product, onAddToCart: (product: Product) 
 
                 {/* BADGE STATUS TOKO */}
                 {storeProfile && (
-                    storeProfile.status === true ? (
+                    storeProfile.status === false ? (
                         <div className="absolute top-3 left-3 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 z-20">
                             <CheckCircle className='w-3 h-3' /> Rekomendasi
                         </div>

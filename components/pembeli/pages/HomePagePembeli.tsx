@@ -76,22 +76,22 @@ const ProductCard: React.FC<{ product: Product, onAddToCart: (product: Product) 
     // Asumsi: Status TRUE di DB = Direkomendasikan
     const isRecommended = product.profile_penjual?.status ?? false;
     const storeName = product.profile_penjual?.store_name || "Toko Tidak Dikenal";
-    const tagLabel = isRecommended ? 'Toko Rekomendasi' : 'Non-Rekomendasi';
+    const tagLabel = isRecommended ? 'Non-Rekomendasi' : 'Rekoemendasi';
 
     return (
         <div
-            className="group relative flex flex-col overflow-hidden rounded-3xl bg-white shadow-xl transition-all duration-300 hover:shadow-2xl hover:ring-2 hover:ring-blue-500"
+            className="group relative flex flex-col overflow-hidden rounded-3xl bg-white shadow-xl transition-all duration-300 hover:shadow-2xl hover:ring-2 hover:ring-blue-500 mt-2"
         >
             {/* Badge Rekomendasi/Tag */}
             <span
                 className={`absolute top-3 left-3 z-10 flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shadow-md 
             ${isRecommended
-                        ? 'bg-green-600 text-white'
-                        : 'bg-red-600 text-white'
+                        ? 'bg-red-600 text-white'
+                        : 'bg-green-600 text-white'
                     }`
                 }
             >
-                {isRecommended ? <CheckCircle className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                {isRecommended ? <XCircle className="h-3 w-3" /> : <CheckCircle className="h-3 w-3" />}
                 {tagLabel}
             </span>
 
@@ -360,7 +360,7 @@ const HomePagePembeli = () => {
     const carouselProducts = [...products.slice(0, 10), ...products.slice(0, 10)];
 
     // Produk unggulan (misalnya, 4 produk pertama yang direkomendasikan)
-    const latestRecommendedProducts = products.filter(p => p.profile_penjual?.status).slice(0, 4);
+    const latestRecommendedProducts = products.filter(p => p.profile_penjual?.status === false).slice(0, 4);
 
 
     return (

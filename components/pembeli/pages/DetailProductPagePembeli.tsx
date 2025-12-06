@@ -567,7 +567,7 @@ Mohon konfirmasi pesanan saya. Terima kasih.
         ?? [];
 
     // Tentukan status rekomendasi penjual
-    const isRecommended = product.profile_penjual?.status !== false;
+    const isRecommended = product.profile_penjual?.status !== true;
 
     return (
         <MainLayoutPembeli>
