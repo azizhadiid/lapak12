@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 // IMPOR ICON BARU
-import { Search, Eye, ShoppingCart, ChevronLeft, ChevronRight, Utensils, Coffee, Cake, Home, Store, CheckCircle, AlertCircle, ShoppingBasket } from 'lucide-react';
+import { Search, Eye, ShoppingCart, ChevronLeft, ChevronRight, Cake, Home, Store, CheckCircle, AlertCircle, ShoppingBasket, Soup, GlassWater, Smartphone, Dumbbell } from 'lucide-react';
 import MainLayoutPembeli from "../MainLayoutPembeli";
 import Link from 'next/link';
 // IMPOR SUPABASE
@@ -41,11 +41,11 @@ const formatRupiah = (amount: number) => {
 
 // --- Kategori Baru (Dengan Lucide Icons & Warna) ---
 const categories = [
-    // ... (Kategori Anda tetap sama)
-    { id: 'makanan-berat', name: 'Makanan Berat', icon: Utensils, color: 'bg-red-500' },
-    { id: 'makanan-ringan', name: 'Cemilan/Snack', icon: Cake, color: 'bg-yellow-500' },
-    { id: 'minuman-kopi', name: 'Minuman Kopi', icon: Coffee, color: 'bg-amber-800' },
-    { id: 'minuman-nonkopi', name: 'Minuman Non-Kopi', icon: Coffee, color: 'bg-cyan-500' },
+    { id: 'makanan', name: 'Makanan', icon: Soup, color: 'bg-green-500' },
+    { id: 'minuman', name: 'Minuman', icon: GlassWater, color: 'bg-cyan-500' },
+    { id: 'cemilan', name: 'Cemilan/Snack', icon: Cake, color: 'bg-yellow-500' },
+    { id: 'teknologi', name: 'Teknologi', icon: Smartphone, color: 'bg-indigo-500' },
+    { id: 'olahraga', name: 'Olahraga', icon: Dumbbell, color: 'bg-red-500' },
     { id: 'lainnya', name: 'Lainnya', icon: Home, color: 'bg-gray-500' },
 ];
 
@@ -435,34 +435,38 @@ export default function ProductPagePembeli() {
             </header>
 
             <main>
-                {/* Kategori */}
+                {/* Kategori BARU (MENGHILANGKAN SCROLL HORIZONTAL) */}
                 <section className="mb-8 md:mb-12">
-                    <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-4 md:mb-6">Kategori</h2>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">
-                        {/* Tombol 'All' */}
+                    <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-4 md:mb-6">Jelajahi Kategori</h2>
+                    {/* Menggunakan Grid Layout untuk menghilangkan scroll horizontal dan memaksa wrap */}
+                    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                        {/* Tombol 'All' - Gaya modern: icon besar, teks di bawah */}
                         <button
                             onClick={() => { setSelectedCategory('all'); setCurrentPage(1); }}
-                            className={`flex flex-col items-center justify-center p-4 md:p-6 rounded-2xl transition-all duration-200 min-h-[100px] ${selectedCategory === 'all'
-                                ? 'bg-blue-600 text-white shadow-lg'
-                                : 'bg-white hover:bg-blue-50 text-gray-800 shadow-md hover:shadow-lg border border-gray-200'
+                            className={`flex flex-col items-center justify-center p-4 rounded-xl transition-all duration-200 text-center border-2 aspect-square w-full
+                                ${selectedCategory === 'all'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-105'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:border-blue-500 hover:shadow-sm'
                                 }`}
+                            style={{ minWidth: '80px' }} // Memastikan ukuran minimum pada tampilan yang sangat kecil
                         >
-                            <div className="text-3xl md:text-4xl mb-2">🛍️</div>
-                            <div className="font-semibold text-sm md:text-base">Semua</div>
+                            <ShoppingBasket className="w-8 h-8 md:w-10 md:h-10 mb-1.5" />
+                            <div className="font-semibold text-xs md:text-sm">Semua Produk</div>
                         </button>
                         {/* Tombol Kategori Lain */}
                         {categories.map((category) => (
                             <button
                                 key={category.id}
                                 onClick={() => { setSelectedCategory(category.id); setCurrentPage(1); }}
-                                className={`flex flex-col items-center justify-center p-4 md:p-6 rounded-2xl transition-all duration-200 min-h-[100px] 
+                                className={`flex flex-col items-center justify-center p-4 rounded-xl transition-all duration-200 text-center border-2 aspect-square w-full
                                     ${selectedCategory === category.id
-                                        ? `${category.color} text-white shadow-lg`
-                                        : 'bg-white hover:bg-blue-50 text-gray-800 shadow-md hover:shadow-lg border border-gray-200'
+                                        ? `bg-blue-600 text-white border-blue-600 shadow-md transform scale-105`
+                                        : 'bg-white text-gray-700 border-gray-200 hover:border-blue-500 hover:shadow-sm'
                                     }`}
+                                style={{ minWidth: '80px' }} // Memastikan ukuran minimum pada tampilan yang sangat kecil
                             >
-                                <category.icon className="w-8 h-8 md:w-10 md:h-10 mb-2" />
-                                <div className="font-semibold text-sm md:text-base">{category.name}</div>
+                                <category.icon className="w-8 h-8 md:w-10 md:h-10 mb-1.5" />
+                                <div className="font-semibold text-xs md:text-sm">{category.name}</div>
                             </button>
                         ))}
                     </div>
