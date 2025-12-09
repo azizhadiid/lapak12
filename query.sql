@@ -599,6 +599,51 @@ CREATE TRIGGER kurangi_stok_trigger
 AFTER INSERT ON public.penjualan
 FOR EACH ROW
 EXECUTE PROCEDURE public.update_stok_after_penjualan();
+
+-- /////////////////////////////////////////////////////////////////////////////////
+-- Bagian Pencatatan Penjual (LOGIKA PENGEMBALIAN STOK)
+-- /////////////////////////////////////////////////////////////////////////////////
+
+-- 1. Buat fungsi untuk MENGEMBALIKAN stok produk
+CREATE OR REPLACE FUNCTION public.revert_stok_before_delete()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER -- PENTING: Agar fungsi bisa menulis ke tabel 'produk' (bypass RLS)
+SET search_path = public, auth
+AS $$
+BEGIN
+    -- OLD.jumlah adalah jumlah yang sebelumnya dicatat, yang sekarang akan dihapus.
+    -- Kita tambahkan kembali jumlah tersebut ke stok produk.
+    UPDATE public.produk
+    SET stok = stok + OLD.jumlah,
+        updated_at = now()
+    WHERE id = OLD.produk_id;
+
+    -- Return OLD agar operasi DELETE bisa dilanjutkan
+    RETURN OLD;
+END;
+$$;
+
+-- 2. Buat trigger yang memanggil fungsi di atas SEBELUM DELETE dari tabel 'penjualan'
+CREATE TRIGGER kembalikan_stok_trigger
+BEFORE DELETE ON public.penjualan -- Dipanggil sebelum baris dihapus
+FOR EACH ROW
+EXECUTE PROCEDURE public.revert_stok_before_delete();
+
+
+-- 3. Verifikasi RLS DELETE (Berdasarkan query.sql yang Anda berikan, ini sudah ada dan BENAR)
+/*
+CREATE POLICY "Penjual bisa melihat dan membuat pencatatan penjualan sendiri"
+ON public.penjualan
+FOR ALL -- Ini mencakup DELETE
+USING (
+    auth.uid() = penjual_id AND
+    public.get_my_role() = 'penjual'
+)
+WITH CHECK (
+    auth.uid() = penjual_id
+);
+*/
 -- /////////////////////////////////////////////////////////////////////////////////
 -- End Pencatatan Penjual
 -- /////////////////////////////////////////////////////////////////////////////////

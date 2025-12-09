@@ -19,15 +19,28 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronLeft, Loader2 } from "lucide-react"; // Tambah Loader2
+import {
+    ChevronLeft, Loader2, Calendar, Package, ShoppingCart, Tag,
+    Minus, DollarSign, Users, Wallet, Boxes, TrendingUp
+} from "lucide-react";
 import MainLayoutPenjual from "@/components/penjual/MainLayoutPenjual";
-import { Penjualan } from "@/lib/types/pencatatan"; // Pastikan tipe ini ada
 
-// Tipe untuk data form
+
+// --- Tipe Data Produk untuk Dropdown ---
+interface PenjualProduct {
+    id: string;
+    nama_produk: string;
+    harga: number;
+    jenis_produk: string;
+    stok: number;
+}
+
+// Tipe untuk data form (Diperbarui sesuai DB baru)
 type FormData = {
     tanggal: string;
-    namaProduk: string;
-    kategori: string;
+    produkId: string; // ID Produk yang dipilih
+    namaProdukHistory: string; // Nama produk (history)
+    kategori: string; // Kategori (akan diisi otomatis)
     jumlah: string;
     hargaSatuan: string;
     pembeli: string;
@@ -38,12 +51,17 @@ export default function EditPencatatanPage() {
     const supabase = createClientComponentClient();
     const router = useRouter();
     const params = useParams();
-    const id = params.id as string; // Ambil ID dari URL
+    const id = params.id as string; // ID Pencatatan dari URL
 
-    // State
+    // State Data
+    const [sellerProducts, setSellerProducts] = useState<PenjualProduct[]>([]);
+    const [originalStok, setOriginalStok] = useState(0); // Stok produk saat ini
+
+    // State Form
     const [formData, setFormData] = useState<FormData>({
         tanggal: "",
-        namaProduk: "",
+        produkId: "",
+        namaProdukHistory: "",
         kategori: "",
         jumlah: "",
         hargaSatuan: "",
@@ -51,14 +69,16 @@ export default function EditPencatatanPage() {
         metodePembayaran: "",
     });
 
-    // Pisahkan state loading
-    const [isPageLoading, setIsPageLoading] = useState(true); // Untuk loading halaman
-    const [isSubmitting, setIsSubmitting] = useState(false); // Untuk tombol submit
+    // State Loading & User
+    const [isPageLoading, setIsPageLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [user, setUser] = useState<User | null>(null);
+    const [isProductLoading, setIsProductLoading] = useState(true);
 
-    // --- 1. FETCH DATA SAAT HALAMAN DIBUKA ---
+
+    // --- 1. FETCH DATA PRODUK DAN PENCATATAN SAAT HALAMAN DIBUKA ---
     useEffect(() => {
-        async function loadPencatatan() {
+        async function loadData() {
             setIsPageLoading(true);
 
             // 1. Dapatkan user yang login
@@ -68,7 +88,7 @@ export default function EditPencatatanPage() {
                 router.push("/login");
                 return;
             }
-            setUser(user); // Simpan user di state
+            setUser(user);
 
             if (!id) {
                 toast.error("ID pencatatan tidak valid.");
@@ -76,40 +96,100 @@ export default function EditPencatatanPage() {
                 return;
             }
 
-            // 2. Fetch data PENCATATAN, pastikan user_id-nya cocok!
-            const { data, error } = await supabase
+            // 2. Fetch data PENCATATAN (JOIN ke produk untuk dapat stok/harga terbaru)
+            const { data: penjualanData, error: penjualanError } = await supabase
                 .from("penjualan")
-                .select("*")
-                .eq("id", id)           // Filter berdasarkan ID dari URL
-                .eq("user_id", user.id) // PENTING: Filter berdasarkan user_id yang login
-                .single();              // Ambil satu data saja
+                .select(`
+                    *, 
+                    produk:produk_id (stok, harga, jenis_produk)
+                `)
+                .eq("id", id)
+                .eq("penjual_id", user.id) // Diperbarui ke penjual_id
+                .single();
 
-            // 3. Handle jika data tidak ditemukan (atau bukan miliknya)
-            if (error || !data) {
-                console.error("Error fetch data:", error);
+            if (penjualanError || !penjualanData) {
+                console.error("Error fetch data:", penjualanError);
                 toast.error("Gagal memuat data atau Anda tidak memiliki akses.");
                 router.push("/penjual/pencatatan");
                 return;
             }
 
-            // 4. Sukses! Isi form dengan data dari database
+            // 3. Fetch SEMUA produk penjual (untuk dropdown)
+            setIsProductLoading(true);
+            const { data: productList, error: productError } = await supabase
+                .from('produk')
+                .select('id, nama_produk, harga, jenis_produk, stok')
+                .eq('penjual_id', user.id)
+                .order('nama_produk', { ascending: true });
+
+            if (productError) {
+                console.error("Error fetching products:", productError);
+                toast.error("Gagal memuat daftar produk.");
+                setIsProductLoading(false);
+                return;
+            }
+
+            const mappedProductList: PenjualProduct[] = (productList ?? []).map(p => ({
+                id: p.id,
+                nama_produk: p.nama_produk,
+                harga: parseFloat(p.harga),
+                jenis_produk: p.jenis_produk,
+                stok: p.stok,
+            }));
+            setSellerProducts(mappedProductList);
+            setIsProductLoading(false);
+
+
+            // 4. Hitung STOK PRODUK SAAT INI + JUMLAH PENJUALAN YANG SEDANG DIEDIT
+            // Logika: Stok_saat_ini = (Stok Produk di DB) + (Jumlah Penjualan yang sedang diedit)
+            // Ini untuk memberikan batasan atas yang benar saat mengedit
+            const produkRelasi = Array.isArray(penjualanData.produk) ? penjualanData.produk[0] : penjualanData.produk;
+            const stokSaatIni = produkRelasi ? produkRelasi.stok : 0;
+            const jumlahLama = penjualanData.jumlah;
+            const maxStokEdit = stokSaatIni + jumlahLama;
+
+            // Simpan stok saat ini
+            setOriginalStok(maxStokEdit);
+
+
+            // 5. Sukses! Isi form
             setFormData({
-                tanggal: data.tanggal,
-                namaProduk: data.nama_produk,
-                kategori: data.kategori,
-                jumlah: String(data.jumlah), // Ubah angka jadi string
-                hargaSatuan: String(data.harga_satuan), // Ubah angka jadi string
-                pembeli: data.nama_pembeli,
-                metodePembayaran: data.metode_pembayaran,
+                tanggal: penjualanData.tanggal,
+                produkId: penjualanData.produk_id,
+                namaProdukHistory: penjualanData.nama_produk_history,
+                kategori: penjualanData.kategori,
+                jumlah: String(penjualanData.jumlah),
+                hargaSatuan: String(penjualanData.harga_satuan),
+                pembeli: penjualanData.nama_pembeli,
+                metodePembayaran: penjualanData.metode_pembayaran,
             });
 
             setIsPageLoading(false);
         }
 
-        loadPencatatan();
+        loadData();
     }, [id, supabase, router]);
 
-    // Helper format currency (tetap sama)
+    // --- HANDLER SAAT PRODUK DIPILIH (Jika penjual ingin mengubah produk yang dijual) ---
+    const handleProductSelect = (selectedProductId: string) => {
+        const selectedProduct = sellerProducts.find(p => p.id === selectedProductId);
+
+        if (selectedProduct) {
+            setFormData({
+                ...formData,
+                produkId: selectedProductId,
+                namaProdukHistory: selectedProduct.nama_produk,
+                kategori: selectedProduct.jenis_produk || "Lainnya",
+                hargaSatuan: selectedProduct.harga.toString(),
+                jumlah: "", // Reset jumlah jika produk berganti
+            });
+            // Reset batas stok max karena produk ganti
+            setOriginalStok(selectedProduct.stok);
+        }
+    };
+
+
+    // Helper format currency
     const formatCurrency = (amount: number) => {
         if (isNaN(amount)) return "Rp 0";
         return new Intl.NumberFormat("id-ID", {
@@ -122,91 +202,97 @@ export default function EditPencatatanPage() {
     // --- 2. HANDLE SUBMIT UNTUK UPDATE DATA ---
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (isSubmitting || !user || !id) return; // Cek user dan id
+        if (isSubmitting || !user || !id) return;
         setIsSubmitting(true);
 
+        const jumlahBaru = parseInt(formData.jumlah);
+        const maxLimit = originalStok;
+
+        // Front-end check untuk stok
+        if (jumlahBaru > maxLimit) {
+            toast.error(`Jumlah jual melebihi stok yang tersedia (${maxLimit}).`);
+            setIsSubmitting(false);
+            return;
+        }
+
+
         try {
-            // Siapkan data untuk di-update
             const updatedData = {
-                // user_id tidak perlu di-update
+                // Kolom Foreign Key
+                produk_id: formData.produkId,
+                // Kolom Data Penjualan
                 tanggal: formData.tanggal,
                 kategori: formData.kategori,
-                nama_produk: formData.namaProduk,
-                jumlah: parseInt(formData.jumlah),
-                harga_satuan: parseInt(formData.hargaSatuan),
-                total_harga: parseInt(formData.jumlah) * parseInt(formData.hargaSatuan),
+                nama_produk_history: formData.namaProdukHistory, // Diperbarui ke history
+                jumlah: jumlahBaru,
+                harga_satuan: parseFloat(formData.hargaSatuan),
+                total_harga: jumlahBaru * parseFloat(formData.hargaSatuan),
                 nama_pembeli: formData.pembeli,
                 metode_pembayaran: formData.metodePembayaran,
+                // created_at TIDAK perlu diupdate
             };
 
-            // ✅ Jalankan UPDATE, bukan INSERT
+            // ✅ Jalankan UPDATE
+            // Database Trigger (sesuaikan_stok_update_trigger) akan mengurus perubahan stok.
             const { error } = await supabase
                 .from("penjualan")
                 .update(updatedData)
-                .eq("id", id)           // PENTING: Update HANYA record dengan ID ini
-                .eq("user_id", user.id); // PENTING: DAN yang dimiliki user ini
+                .eq("id", id)
+                .eq("penjual_id", user.id); // Diperbarui ke penjual_id
 
-            if (error) throw error;
+            if (error) {
+                // Tangani error dari trigger (misal: stok produk baru tidak cukup)
+                const errorMessage = error.message.includes("Gagal:")
+                    ? error.message.split('ERROR:')[1].trim()
+                    : `Gagal memperbarui data: ${error.message}`;
+                throw new Error(errorMessage);
+            }
 
             toast.success("Pencatatan berhasil diperbarui!");
-            router.push("/penjual/pencatatan"); // Kembali ke daftar
-            router.refresh(); // Refresh data di halaman daftar
+            router.push("/penjual/pencatatan");
+            router.refresh();
         } catch (err: any) {
             console.error(err);
-            toast.error(`Gagal memperbarui data: ${err.message}`);
+            toast.error(err.message || "Terjadi kesalahan saat memperbarui data.");
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    // Hitung total harga (tetap sama)
+    // Hitung total harga
     const totalHarga = (formData.jumlah && formData.hargaSatuan)
-        ? parseInt(formData.jumlah) * parseInt(formData.hargaSatuan)
+        ? parseInt(formData.jumlah) * parseFloat(formData.hargaSatuan)
         : 0;
 
-    // --- TAMPILAN LOADING ---
-    if (isPageLoading) {
-        return (
-            <MainLayoutPenjual>
-                <div className="flex justify-center items-center h-64">
-                    <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-                    <p className="ml-3 text-gray-600">Memuat data pencatatan...</p>
-                </div>
-            </MainLayoutPenjual>
-        );
-    }
+    // Stok Max Limit
+    const maxStok = originalStok;
 
     // --- TAMPILAN FORM (RENDER) ---
     return (
         <MainLayoutPenjual>
-            <div className="space-y-6 max-w-4xl mx-auto pb-12">
-                {/* Header Halaman dengan Tombol Back */}
-                <div>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="mb-4"
-                        onClick={() => router.push("/penjual/pencatatan")} // Arahkan ke /penjual/pencatatan
-                        disabled={isSubmitting}
-                    >
-                        <ChevronLeft className="h-4 w-4 mr-1" />
-                        Kembali
-                    </Button>
-                    <h1 className="text-3xl font-bold text-gray-900">Edit Data Pencatatan Anda</h1>
-                    <p className="text-base text-gray-500 mt-1">
-                        Perbarui form di bawah untuk mengubah data pencatatan penjualan.
+            {/* Mengubah lebar container menjadi max-w-6xl */}
+            <div className="space-y-8 max-w-6xl mx-auto pb-12 py-8">
+                {/* Header Halaman */}
+                <div className="border-b pb-4">
+                    <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">
+                        Edit Pencatatan Penjualan
+                    </h1>
+                    <p className="text-lg text-gray-500 mt-2">
+                        Perbarui detail transaksi ini. Perubahan akan menyesuaikan stok produk secara otomatis.
                     </p>
                 </div>
 
                 {/* Form dalam Card */}
-                <Card>
-                    <CardContent className="pt-6">
-                        <form onSubmit={handleSubmit} className="space-y-6">
-                            {/* Semua input di bawah ini SAMA, hanya 'disabled' diubah ke isSubmitting */}
+                <Card className="shadow-2xl border-t-4 border-blue-600 rounded-lg">
+                    <CardContent className="pt-8">
+                        <form onSubmit={handleSubmit} className="space-y-8">
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Baris 1: Tanggal & Kategori */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-2">
-                                    <Label htmlFor="tanggal">Tanggal *</Label>
+                                    <Label htmlFor="tanggal" className="flex items-center text-gray-700 font-semibold">
+                                        <Calendar className="h-4 w-4 mr-2 text-blue-600" /> Tanggal *
+                                    </Label>
                                     <Input
                                         id="tanggal"
                                         type="date"
@@ -214,130 +300,166 @@ export default function EditPencatatanPage() {
                                         value={formData.tanggal}
                                         onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
                                         disabled={isSubmitting}
+                                        className="py-6 text-base"
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="kategori">Kategori *</Label>
-                                    <Select
-                                        value={formData.kategori}
-                                        onValueChange={(value) => setFormData({ ...formData, kategori: value })}
-                                        required
-                                        disabled={isSubmitting}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Pilih kategori" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Makanan">Makanan</SelectItem>
-                                            <SelectItem value="Minuman">Minuman</SelectItem>
-                                            <SelectItem value="Kerajinan">Kerajinan</SelectItem>
-                                            <SelectItem value="Fashion">Fashion</SelectItem>
-                                            <SelectItem value="Lainnya">Lainnya</SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                                    <Label htmlFor="kategori" className="flex items-center text-gray-700 font-semibold">
+                                        <Boxes className="h-4 w-4 mr-2 text-blue-600" /> Kategori (Otomatis)
+                                    </Label>
+                                    <Input
+                                        id="kategori"
+                                        value={formData.kategori || "Pilih Produk Dulu"}
+                                        readOnly
+                                        disabled
+                                        className="py-6 text-base bg-gray-100 italic"
+                                    />
                                 </div>
                             </div>
 
+                            {/* Baris 2: Pilih Produk */}
                             <div className="space-y-2">
-                                <Label htmlFor="namaProduk">Nama Produk *</Label>
-                                <Input
-                                    id="namaProduk"
-                                    placeholder="Contoh: Keripik Singkong"
+                                <Label htmlFor="produkId" className="flex items-center text-gray-700 font-semibold">
+                                    <Package className="h-4 w-4 mr-2 text-blue-600" /> Produk yang Dijual *
+                                </Label>
+                                <Select
+                                    value={formData.produkId}
+                                    onValueChange={handleProductSelect}
                                     required
-                                    value={formData.namaProduk}
-                                    onChange={(e) => setFormData({ ...formData, namaProduk: e.target.value })}
                                     disabled={isSubmitting}
-                                />
+                                >
+                                    <SelectTrigger id="produkId" className="py-6 text-base">
+                                        <SelectValue placeholder="Pilih produk yang terjual" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {sellerProducts.map((product) => (
+                                            <SelectItem
+                                                key={product.id}
+                                                value={product.id}
+                                            // Non-aktifkan jika stok baru (stok di DB - (jumlah lama - jumlah baru)) akan negatif.
+                                            // Karena logika stok di handle BE, kita hanya fokus memastikan user bisa memilih produk, 
+                                            // dan BE yang akan RAISING EXCEPTION jika stok tidak cukup.
+                                            >
+                                                {product.nama_produk} ({product.stok} unit tersedia)
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Baris 3: Harga, Jumlah, Total */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                {/* HARGA SATUAN (Read Only) */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="jumlah">Jumlah *</Label>
+                                    <Label htmlFor="hargaSatuan" className="flex items-center text-gray-700 font-semibold">
+                                        <Tag className="h-4 w-4 mr-2 text-blue-600" /> Harga Satuan (Otomatis)
+                                    </Label>
+                                    <Input
+                                        id="hargaSatuan"
+                                        type="text"
+                                        value={formatCurrency(parseFloat(formData.hargaSatuan || '0'))}
+                                        readOnly
+                                        disabled
+                                        className="py-6 text-base bg-gray-100 italic"
+                                    />
+                                </div>
+                                {/* JUMLAH JUAL */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="jumlah" className="flex items-center text-gray-700 font-semibold">
+                                        <Minus className="h-4 w-4 mr-2 text-blue-600" /> Jumlah Jual *
+                                    </Label>
                                     <Input
                                         id="jumlah"
                                         type="number"
                                         min="1"
+                                        max={maxStok} // Batas Maksimum Stok Tersedia + Jumlah yang DIEDIT
                                         placeholder="0"
                                         required
                                         value={formData.jumlah}
                                         onChange={(e) => setFormData({ ...formData, jumlah: e.target.value })}
                                         disabled={isSubmitting}
+                                        className="py-6 text-base"
                                     />
+                                    <p className="text-xs text-gray-500 mt-1">Stok Maksimal yang dapat dijual: {maxStok}</p>
                                 </div>
+                                {/* TOTAL HARGA */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="hargaSatuan">Harga Satuan (Rp) *</Label>
+                                    <Label htmlFor="totalHarga" className="flex items-center text-gray-700 font-semibold">
+                                        <DollarSign className="h-4 w-4 mr-2 text-blue-600" /> Total Harga
+                                    </Label>
                                     <Input
-                                        id="hargaSatuan"
-                                        type="number"
-                                        min="0"
-                                        placeholder="0"
-                                        required
-                                        value={formData.hargaSatuan}
-                                        onChange={(e) => setFormData({ ...formData, hargaSatuan: e.target.value })}
-                                        disabled={isSubmitting}
+                                        id="totalHarga"
+                                        type="text"
+                                        value={formatCurrency(totalHarga)}
+                                        readOnly
+                                        disabled
+                                        className="py-6 text-base bg-blue-50 font-bold border-blue-600"
                                     />
                                 </div>
                             </div>
 
-                            {totalHarga > 0 && (
-                                <div className="bg-blue-50 p-4 rounded-lg">
-                                    <div className="text-sm text-blue-600 font-medium">Total Harga</div>
-                                    <div className="text-2xl font-bold text-blue-700 mt-1">
-                                        {formatCurrency(totalHarga)}
-                                    </div>
+                            {/* Baris 4: Nama Pembeli & Metode Pembayaran */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-2">
+                                    <Label htmlFor="pembeli" className="flex items-center text-gray-700 font-semibold">
+                                        <Users className="h-4 w-4 mr-2 text-blue-600" /> Nama Pembeli *
+                                    </Label>
+                                    <Input
+                                        id="pembeli"
+                                        placeholder="Contoh: Ibu Siti"
+                                        required
+                                        value={formData.pembeli}
+                                        onChange={(e) => setFormData({ ...formData, pembeli: e.target.value })}
+                                        disabled={isSubmitting}
+                                        className="py-6 text-base"
+                                    />
                                 </div>
-                            )}
 
-                            <div className="space-y-2">
-                                <Label htmlFor="pembeli">Nama Pembeli *</Label>
-                                <Input
-                                    id="pembeli"
-                                    placeholder="Contoh: Ibu Siti"
-                                    required
-                                    value={formData.pembeli}
-                                    onChange={(e) => setFormData({ ...formData, pembeli: e.target.value })}
-                                    disabled={isSubmitting}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="metodePembayaran">Metode Pembayaran *</Label>
-                                <Select
-                                    value={formData.metodePembayaran}
-                                    onValueChange={(value) => setFormData({ ...formData, metodePembayaran: value })}
-                                    required
-                                    disabled={isSubmitting}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Pilih metode pembayaran" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Tunai">Tunai</SelectItem>
-                                        <SelectItem value="Transfer">Transfer Bank</SelectItem>
-                                        <SelectItem value="E-Wallet">E-Wallet (GoPay, OVO, dll)</SelectItem>
-                                        <SelectItem value="QRIS">QRIS</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <div className="space-y-2">
+                                    <Label htmlFor="metodePembayaran" className="flex items-center text-gray-700 font-semibold">
+                                        <Wallet className="h-4 w-4 mr-2 text-blue-600" /> Metode Pembayaran *
+                                    </Label>
+                                    <Select
+                                        value={formData.metodePembayaran}
+                                        onValueChange={(value) => setFormData({ ...formData, metodePembayaran: value })}
+                                        required
+                                        disabled={isSubmitting}
+                                    >
+                                        <SelectTrigger className="py-6 text-base">
+                                            <SelectValue placeholder="Pilih metode pembayaran" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Tunai">Tunai</SelectItem>
+                                            <SelectItem value="Transfer">Transfer Bank</SelectItem>
+                                            <SelectItem value="E-Wallet">E-Wallet (GoPay, OVO, dll)</SelectItem>
+                                            <SelectItem value="QRIS">QRIS</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
 
                             {/* Tombol Footer Form */}
-                            <div className="flex justify-end gap-4 pt-4">
+                            <div className="flex justify-end gap-4 pt-6 border-t">
                                 <Button
                                     type="button"
                                     variant="outline"
                                     onClick={() => router.push("/penjual/pencatatan")}
                                     disabled={isSubmitting}
+                                    className="px-6 py-3 text-base"
                                 >
                                     Batal
                                 </Button>
-                                <Button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700">
+                                <Button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 px-6 py-3 text-base">
                                     {isSubmitting ? (
-                                        <>
+                                        <span className="flex items-center">
                                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                             Menyimpan...
-                                        </>
+                                        </span>
                                     ) : (
-                                        "Simpan Perubahan" // Ganti teks tombol
+                                        <span className="flex items-center">
+                                            <TrendingUp className="mr-2 h-4 w-4" />
+                                            Simpan Perubahan
+                                        </span>
                                     )}
                                 </Button>
                             </div>
