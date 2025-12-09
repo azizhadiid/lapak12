@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     default: 'Lapak12', // Judul untuk halaman utama (/)
     template: '%s | Lapak12', // Template untuk halaman lain
   },
-  description: 'Lapak12 - Platform Jual Beli Online Terpercaya',
+  description: 'Lapak12 - Platform Jual Beli Online Terpercaya.',
   icons: { icon: '/lapak12.svg' }
 };
 
