@@ -135,7 +135,7 @@ export default function RegisterPenjualPageComponent() {
                     router.push('/login');
                 }, 2000);
             }
-        } catch (err) {
+        } catch {
             setAlertMessage({
                 type: 'error',
                 message: "Terjadi kesalahan pada sistem. Coba lagi nanti.",

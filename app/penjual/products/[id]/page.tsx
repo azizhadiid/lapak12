@@ -162,12 +162,12 @@ export default function EditProductPage() {
     };
 
     // Handler untuk select
-    const handleSelectChange = (value: string) => {
-        setFormData(prev => ({
-            ...prev,
-            jenis_produk: value,
-        }));
-    };
+    // const handleSelectChange = (value: string) => {
+    //     setFormData(prev => ({
+    //         ...prev,
+    //         jenis_produk: value,
+    //     }));
+    // };
 
     // Handler untuk upload file
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -224,7 +224,9 @@ export default function EditProductPage() {
             if (!user) throw new Error("Sesi pengguna tidak ditemukan.");
 
             let newImageUrl = formData.current_gambar;
-            let oldFilePath = originalProduct?.gambar ? originalProduct.gambar.split('public/product-images/')[1] : null;
+            const oldFilePath = originalProduct?.gambar
+                ? originalProduct.gambar.split('public/product-images/')[1]
+                : null;
 
             // 1. Jika ada file baru, lakukan UPLOAD
             if (selectedFile) {
@@ -294,17 +296,6 @@ export default function EditProductPage() {
         }
     };
 
-    // --- RENDER ---
-    if (isLoading) {
-        return (
-            <MainLayoutPenjual>
-                <div className="flex justify-center items-center h-64 mb-48">
-                    <Loader2 className="w-8 h-8 animate-spin text-blue-600 mr-3" />
-                    <span className="text-lg text-gray-700">Memuat data produk...</span>
-                </div>
-            </MainLayoutPenjual>
-        );
-    }
 
     if (errorMessage) {
         return (

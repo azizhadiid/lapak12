@@ -11,7 +11,7 @@ import { useRouter, useSearchParams } from 'next/navigation'; // Diperlukan untu
 export default function ResetPasswordPageComponent() {
     const supabase = createClientComponentClient();
     const router = useRouter(); // Gunakan useRouter
-    const searchParams = useSearchParams();
+    // const searchParams = useSearchParams();
 
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(true); // Mulai sebagai loading

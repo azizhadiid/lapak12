@@ -156,7 +156,7 @@ export default function RegisterPageComponent() {
                 });
                 router.push('/login');
             }
-        } catch (err) {
+        } catch {
             Swal.fire({
                 title: 'Terjadi Kesalahan',
                 text: "Terjadi kesalahan pada sistem. Coba lagi nanti.",

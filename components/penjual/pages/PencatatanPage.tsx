@@ -14,7 +14,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, Calendar, ShoppingBag, Wallet, TrendingUp, Minus } from "lucide-react"; // Import TrendingUp & Minus
+import { Search, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, Calendar, ShoppingBag, Wallet, TrendingUp } from "lucide-react"; // Import TrendingUp & Minus
 import { Card, CardContent } from "@/components/ui/card";
 // import { Penjualan } from "@/lib/types/pencatatan"; // Asumsi Penjualan interface Anda sudah di-update
 import Link from "next/link";

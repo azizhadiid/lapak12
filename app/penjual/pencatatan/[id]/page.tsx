@@ -20,7 +20,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-    ChevronLeft, Loader2, Calendar, Package, ShoppingCart, Tag,
+    Loader2, Calendar, Package, Tag,
     Minus, DollarSign, Users, Wallet, Boxes, TrendingUp
 } from "lucide-react";
 import MainLayoutPenjual from "@/components/penjual/MainLayoutPenjual";
@@ -70,10 +70,10 @@ export default function EditPencatatanPage() {
     });
 
     // State Loading & User
-    const [isPageLoading, setIsPageLoading] = useState(true);
+    const [, setIsPageLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [user, setUser] = useState<User | null>(null);
-    const [isProductLoading, setIsProductLoading] = useState(true);
+    const [, setIsProductLoading] = useState(true);
 
 
     // --- 1. FETCH DATA PRODUK DAN PENCATATAN SAAT HALAMAN DIBUKA ---
@@ -251,9 +251,18 @@ export default function EditPencatatanPage() {
             toast.success("Pencatatan berhasil diperbarui!");
             router.push("/penjual/pencatatan");
             router.refresh();
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            toast.error(err.message || "Terjadi kesalahan saat memperbarui data.");
+
+            let errorMessage = "Terjadi kesalahan saat memperbarui data.";
+
+            if (err instanceof Error) {
+                errorMessage = err.message;
+            } else if (typeof err === "string") {
+                errorMessage = err;
+            }
+
+            toast.error(errorMessage);
         } finally {
             setIsSubmitting(false);
         }

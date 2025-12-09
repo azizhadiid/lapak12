@@ -1,5 +1,3 @@
-import { Store } from "lucide-react";
-
 export default function FooterPenjual() {
     return (
         // Hapus div pembungkus yang tidak perlu

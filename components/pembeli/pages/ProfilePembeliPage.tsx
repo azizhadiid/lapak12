@@ -5,7 +5,6 @@ import React, { useEffect, useRef, useState } from "react";
 import MainLayoutPembeli from "../MainLayoutPembeli";
 import ProfileSidebarCard from "../components/ProfileSidebarCard";
 import ProfileDataForm from "../components/ProfileDataForm";
-import ProfileAddressList from "../components/ProfileAddressList";
 import { ProfilePembeliData } from "@/lib/types/profilePembeli";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { AlertCircle, Loader2 } from "lucide-react";

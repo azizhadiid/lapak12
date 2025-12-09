@@ -1,6 +1,5 @@
 "use client"
 
-import React, { useState } from "react";
 import FooterLandingPage from "./FooterLanding";
 import AppHeader from "./NavbarLandingPage";
 

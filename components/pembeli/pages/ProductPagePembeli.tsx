@@ -15,6 +15,20 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 const NO_IMAGE_PLACEHOLDER = '/images/nothing.png';
 const PRODUCTS_PER_PAGE = 10; // Menampilkan 10 produk per halaman
 
+interface ProfilePenjual {
+    store_name: string;
+}
+
+interface ProductInCart {
+    penjual_id: string;
+    profile_penjual: ProfilePenjual[];
+}
+
+interface CartItem {
+    produk: ProductInCart[];
+}
+
+
 // Types
 interface Product {
     id: string;
@@ -168,7 +182,7 @@ export default function ProductPagePembeli() {
         const jumlah_produk_dipilih = 1; // Default menambah 1 unit
         const total_harga_item = product.harga * jumlah_produk_dipilih;
         const new_store_name = product.profile_penjual?.store_name || "Toko Tidak Dikenal";
-        const new_penjual_id = (product as any).penjual_id; // Ambil penjual_id (sudah ada di Product interface tapi Supabase-select perlu dijamin)
+        const new_penjual_id = product.penjual_id; // Ambil penjual_id (sudah ada di Product interface tapi Supabase-select perlu dijamin)
 
 
         // =========================================================================
@@ -191,14 +205,19 @@ export default function ProductPagePembeli() {
         }
 
         if (cartItems && cartItems.length > 0) {
-            // Ambil ID Penjual pertama yang ada di keranjang
-            const firstCartItem = cartItems[0];
-            const existing_penjual_id = (firstCartItem.produk as any).penjual_id;
-            const existing_store_name = ((firstCartItem.produk as any).profile_penjual as any)?.store_name;
 
-            // Cek apakah produk baru berasal dari toko yang berbeda
+            const firstCartItem = cartItems[0];
+
+            const firstProduct = firstCartItem.produk[0]; // ← penting!
+
+            const existing_penjual_id = firstProduct.penjual_id;
+            const existing_store_name = firstProduct.profile_penjual?.[0]?.store_name;
+
             if (existing_penjual_id && existing_penjual_id !== new_penjual_id) {
-                showNotification('error', `Produk harus dari toko yang sama. Keranjang Anda sudah berisi produk dari toko ${existing_store_name}.`);
+                showNotification(
+                    'error',
+                    `Produk harus dari toko yang sama. Keranjang Anda sudah berisi produk dari toko ${existing_store_name}.`
+                );
                 return;
             }
         }

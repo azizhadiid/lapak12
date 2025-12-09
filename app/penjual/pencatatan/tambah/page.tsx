@@ -14,7 +14,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-    Calendar, Package, ShoppingCart, Tag, Users, Wallet, Boxes,
+    Calendar, Package, Tag, Users, Wallet, Boxes,
     DollarSign, Loader2, AlertCircle, TrendingUp, Minus
 } from "lucide-react"; // <-- Import Ikon-ikon baru
 import MainLayoutPenjual from "@/components/penjual/MainLayoutPenjual";
@@ -92,9 +92,14 @@ export default function TambahPencatatanPage() {
 
                 setSellerProducts(mappedData);
 
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.error("Error fetching seller products:", err);
-                toast.error("Gagal memuat daftar produk: " + err.message);
+
+                if (err instanceof Error) {
+                    toast.error("Gagal memuat daftar produk: " + err.message);
+                } else {
+                    toast.error("Gagal memuat daftar produk");
+                }
             } finally {
                 setIsProductLoading(false);
             }
@@ -187,9 +192,17 @@ export default function TambahPencatatanPage() {
                 router.push('/penjual/pencatatan'); // <-- Navigasi ke halaman daftar
             }
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            const errorMessage = err.message || "Terjadi kesalahan yang tidak terduga saat menyimpan data.";
+
+            let errorMessage = "Terjadi kesalahan yang tidak terduga saat menyimpan data.";
+
+            if (err instanceof Error) {
+                errorMessage = err.message;
+            } else if (typeof err === "string") {
+                errorMessage = err;
+            }
+
             toast.error(errorMessage);
         } finally {
             setIsLoading(false);

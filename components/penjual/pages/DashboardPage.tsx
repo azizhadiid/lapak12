@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, Package, Eye, CheckCircle, DollarSign, ShoppingCart, Loader2, Calendar, ChevronRight } from 'lucide-react';
+import { TrendingUp, Package, Eye, CheckCircle, DollarSign, ShoppingCart, Calendar, ChevronRight } from 'lucide-react';
 import MainLayoutPenjual from "../MainLayoutPenjual";
 import Link from 'next/link';
-import { FaProductHunt } from 'react-icons/fa';
 // Import Penjualan dari file Anda sebelumnya (asumsi sudah ada)
 interface Penjualan {
     id: string;
@@ -108,7 +107,7 @@ export default function DashboardPageComponent() {
 
             try {
                 // 2. Dapatkan username dari tabel 'users'
-                const { data: userData, error: userError } = await supabase
+                const { data: userData } = await supabase
                     .from('users')
                     .select('username')
                     .eq('id', user.id)
@@ -126,7 +125,7 @@ export default function DashboardPageComponent() {
                     .eq('penjual_id', user.id);
 
                 const today = new Date();
-                let filterDate = new Date();
+                const filterDate = new Date();
                 let isoDate: string | null = null;
 
                 if (timeRange === '7hari') {
@@ -164,9 +163,15 @@ export default function DashboardPageComponent() {
 
                 setPenjualanData(mappedSalesData);
 
-            } catch (error: any) {
+            } catch (error) {
                 console.error("Error fetching dashboard data:", error);
-                toast.error(`Gagal memuat data: ${error.message}`);
+
+                const errorMessage =
+                    error instanceof Error
+                        ? error.message
+                        : JSON.stringify(error) || "Terjadi kesalahan tak dikenal.";
+
+                toast.error(`Gagal memuat data: ${errorMessage}`);
             } finally {
                 setIsLoading(false);
             }

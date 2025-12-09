@@ -2,6 +2,7 @@ import { SiShopee } from "react-icons/si";
 import { FaInstagram, FaTiktok } from "react-icons/fa";
 import { FaSquareXTwitter } from "react-icons/fa6";
 import { FaFacebookSquare } from "react-icons/fa";
+import Link from "next/link";
 
 export default function FooterLandingPage() {
     return (
@@ -12,7 +13,7 @@ export default function FooterLandingPage() {
                         {/* Kolom 1: Logo & Sosial Media */}
                         <div className="col-span-2 md:col-span-2">
                             {/* Mengganti Link dengan <a> */}
-                            <a href="/" className="flex flex-shrink-0 items-center gap-2">
+                            <Link href="/" className="flex flex-shrink-0 items-center gap-2">
                                 <div className="flex items-center justify-center rounded-lg">
                                     <img
                                         // Menggunakan placeholder yang lebih baik untuk logo
@@ -26,7 +27,7 @@ export default function FooterLandingPage() {
                                         }}
                                     />
                                 </div>
-                            </a>
+                            </Link>
                             <p className="mt-4 text-sm text-gray-600">
                                 Platform e-commerce RT 12.
                             </p>

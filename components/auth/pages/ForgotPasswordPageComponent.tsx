@@ -20,7 +20,7 @@ export default function ForgotPageComponent() {
         e.preventDefault();
         setLoading(true);
 
-        const { data, error } = await supabase.auth.resetPasswordForEmail(
+        const { error } = await supabase.auth.resetPasswordForEmail(
             formData.email,
             {
                 redirectTo: `${window.location.origin}/reset-password`,

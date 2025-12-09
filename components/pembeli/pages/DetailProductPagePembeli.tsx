@@ -203,10 +203,12 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
 
             // Mapping data agar sesuai interface Review
             const mappedReviews: Review[] = (data || []).map(r => {
-                const rawProfile = r.profile_pembeli as any;
+                const rawProfile = r.profile_pembeli as unknown;
 
-                // Pastikan profile_pembeli adalah objek
-                const profile = Array.isArray(rawProfile) ? rawProfile[0] : rawProfile;
+                // profile_pembeli bisa berbentuk array atau object
+                const profile = Array.isArray(rawProfile)
+                    ? (rawProfile[0] as Record<string, unknown>)
+                    : (rawProfile as Record<string, unknown>);
 
                 return {
                     id: r.id,
@@ -217,11 +219,12 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
                         full_name: profile.full_name as string | null,
                         foto_url: profile.foto_url as string | null,
                         users: {
-                            username: profile.users.username as string,
+                            username: (profile.users as Record<string, unknown>)?.username as string,
                         }
                     } : null
                 };
             });
+
 
             setReviews(mappedReviews);
 
@@ -280,11 +283,18 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
 
         if (cartItems && cartItems.length > 0) {
             const firstCartItem = cartItems[0];
-            const existing_penjual_id = (firstCartItem.produk as any).penjual_id;
-            const existing_store_name = ((firstCartItem.produk as any).profile_penjual as any)?.store_name;
+
+            const produk = firstCartItem.produk as unknown as Record<string, unknown>;
+            const profilePenjual = produk.profile_penjual as Record<string, unknown> | undefined;
+
+            const existing_penjual_id = produk.penjual_id as string | undefined;
+            const existing_store_name = profilePenjual?.store_name as string | undefined;
 
             if (existing_penjual_id && existing_penjual_id !== new_penjual_id) {
-                showNotification('error', `Produk harus dari toko yang sama. Keranjang Anda sudah berisi produk dari toko ${existing_store_name}.`);
+                showNotification(
+                    'error',
+                    `Produk harus dari toko yang sama. Keranjang Anda sudah berisi produk dari toko ${existing_store_name}.`
+                );
                 return;
             }
         }

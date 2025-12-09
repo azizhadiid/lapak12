@@ -34,8 +34,6 @@ import {
     Users,
     UserCheck,
     UserX,
-    CheckCircle,
-    XCircle,
 } from "lucide-react";
 import supabase from "@/lib/db";
 import MainLayoutPenjual from "../MainLayoutPenjual";
@@ -79,7 +77,7 @@ export default function ManajemenPenjualPage() {
     const [sellerUsers, setSellerUsers] = useState<SellerUser[]>([]);
     const [totalSellers, setTotalSellers] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
-    const [alertMessage, setAlertMessage] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
+    const [, setAlertMessage] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
 
     // --- State untuk Filter/Pagination Penjual ---
     const [searchQuery, setSearchQuery] = useState("");

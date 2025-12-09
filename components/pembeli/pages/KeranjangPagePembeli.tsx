@@ -135,27 +135,30 @@ export default function KeranjangPagePembeli() {
             if (error) throw error;
 
             const mappedItems: CartItem[] = (data || []).map(item => {
-                const rawProduct = item.produk as any;
-                const rawProfile = Array.isArray(rawProduct.profile_penjual)
-                    ? rawProduct.profile_penjual[0]
-                    : rawProduct.profile_penjual;
+                const rawProduct = item.produk as unknown as Record<string, unknown>;
+
+                const rawProfileSource = rawProduct.profile_penjual as unknown;
+
+                const rawProfile = Array.isArray(rawProfileSource)
+                    ? (rawProfileSource[0] as Record<string, unknown>)
+                    : (rawProfileSource as Record<string, unknown> | undefined);
 
                 return {
                     id: item.id,
                     user_id: item.user_id,
                     produk_id: item.produk_id,
                     jumlah_produk_dipilih: item.jumlah_produk_dipilih,
-                    total: parseFloat(item.total as any),
+                    total: Number(item.total),
                     created_at: item.created_at,
                     produk: {
-                        nama_produk: rawProduct.nama_produk,
-                        harga: parseFloat(rawProduct.harga),
-                        stok: rawProduct.stok ?? 0,
-                        gambar: rawProduct.gambar,
+                        nama_produk: rawProduct.nama_produk as string,
+                        harga: Number(rawProduct.harga),
+                        stok: (rawProduct.stok as number | undefined) ?? 0,
+                        gambar: rawProduct.gambar as string,
                         profile_penjual: {
-                            store_name: rawProfile?.store_name || "Toko Tidak Dikenal",
-                            phone: rawProfile?.phone || "N/A",
-                            status: rawProfile?.status ?? false,
+                            store_name: (rawProfile?.store_name as string | undefined) || "Toko Tidak Dikenal",
+                            phone: (rawProfile?.phone as string | undefined) || "N/A",
+                            status: (rawProfile?.status as boolean | undefined) ?? false,
                         }
                     }
                 };
@@ -163,9 +166,16 @@ export default function KeranjangPagePembeli() {
 
             setCartItems(mappedItems);
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Error fetching cart:", err);
-            setError(`Gagal memuat keranjang: ${err.message || 'Unknown error'}`);
+
+            let message = "Unknown error";
+
+            if (err instanceof Error) {
+                message = err.message;
+            }
+
+            setError(`Gagal memuat keranjang: ${message}`);
         } finally {
             setIsLoading(false);
         }

@@ -226,7 +226,7 @@ export default function EditProductTable() {
                             <AlertDialogTitle>Anda yakin ingin menghapus?</AlertDialogTitle>
                             <AlertDialogDescription>
                                 Tindakan ini tidak bisa dibatalkan. Ini akan menghapus produk
-                                <strong className='mx-1'>"{productToDelete?.nama_produk}"</strong>
+                                <strong className="mx-1">&quot;{productToDelete?.nama_produk}&quot;</strong>
                                 secara permanen.
                             </AlertDialogDescription>
                         </AlertDialogHeader>

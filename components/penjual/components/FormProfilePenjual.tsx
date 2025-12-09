@@ -93,6 +93,7 @@ export default function FormProfilePenjual() {
         }
 
         fetchProfileData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [supabase]);
 
     // === 2. LOGIKA TOMBOL EDIT / CANCEL ===
@@ -128,7 +129,16 @@ export default function FormProfilePenjual() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("Sesi berakhir. Silakan login ulang.");
 
-            const dataToUpsert: any = {
+            const dataToUpsert: {
+                id: string;
+                store_name: string;
+                owner_name: string;
+                phone: string;
+                address: string;
+                description: string;
+                updated_at: string;
+                foto_url?: string;
+            } = {
                 id: user.id,
                 store_name: editData.store_name,
                 owner_name: editData.owner_name,
