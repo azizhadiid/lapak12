@@ -60,12 +60,12 @@ const formatRupiah = (amount: number) => {
 // --- 2. KATEGORI (Data Mock) ---
 
 const categories = [
-    { id: 'makanan', name: 'Makanan', icon: Utensils, href: '/product?category=makanan', bgColor: 'bg-yellow-500/10 text-yellow-800', iconBg: 'bg-yellow-500', hoverRing: 'ring-yellow-500', },
-    { id: 'minuman', name: 'Minuman', icon: Coffee, href: '/product?category=minuman', bgColor: 'bg-blue-500/10 text-blue-800', iconBg: 'bg-blue-500', hoverRing: 'ring-indigo-500', },
-    { id: 'cemilan', name: 'Cemilan', icon: Cookie, href: '/product?category=cemilan', bgColor: 'bg-green-500/10 text-green-800', iconBg: 'bg-green-500', hoverRing: 'ring-green-500', },
-    { id: 'teknologi', name: 'Elektronik', icon: Laptop, href: '/product?category=teknologi', bgColor: 'bg-indigo-500/10 text-indigo-800', iconBg: 'bg-indigo-500', hoverRing: 'ring-indigo-500', },
-    { id: 'olahraga', name: 'Olahraga', icon: Dumbbell, href: '/product?category=olahraga', bgColor: 'bg-red-500/10 text-red-800', iconBg: 'bg-red-500', hoverRing: 'ring-red-500', },
-    { id: 'lainnya', name: 'Lainnya', icon: Ellipsis, href: '/product?category=lainnya', bgColor: 'bg-gray-500/10 text-gray-800', iconBg: 'bg-gray-500', hoverRing: 'ring-gray-500', },
+    { id: 'makanan', name: 'Makanan', icon: Utensils, href: '/login', bgColor: 'bg-yellow-500/10 text-yellow-800', iconBg: 'bg-yellow-500', hoverRing: 'ring-yellow-500', },
+    { id: 'minuman', name: 'Minuman', icon: Coffee, href: '/login', bgColor: 'bg-blue-500/10 text-blue-800', iconBg: 'bg-blue-500', hoverRing: 'ring-indigo-500', },
+    { id: 'cemilan', name: 'Cemilan', icon: Cookie, href: '/login', bgColor: 'bg-green-500/10 text-green-800', iconBg: 'bg-green-500', hoverRing: 'ring-green-500', },
+    { id: 'teknologi', name: 'Elektronik', icon: Laptop, href: '/login', bgColor: 'bg-indigo-500/10 text-indigo-800', iconBg: 'bg-indigo-500', hoverRing: 'ring-indigo-500', },
+    { id: 'olahraga', name: 'Olahraga', icon: Dumbbell, href: '/login', bgColor: 'bg-red-500/10 text-red-800', iconBg: 'bg-red-500', hoverRing: 'ring-red-500', },
+    { id: 'lainnya', name: 'Lainnya', icon: Ellipsis, href: '/login', bgColor: 'bg-gray-500/10 text-gray-800', iconBg: 'bg-gray-500', hoverRing: 'ring-gray-500', },
 ];
 
 // --- 3. PRODUCT CARD COMPONENT ---
@@ -133,7 +133,7 @@ const ProductCard: React.FC<{ product: Product, onAddToCart: (product: Product) 
 
                     <div className="mt-4 flex gap-2">
                         {/* Tombol Detail (Link ke halaman detail produk) */}
-                        <Link href={`/product/${product.id}`} passHref className="flex-1">
+                        <Link href={`/login`} passHref className="flex-1">
                             <Button
                                 variant="secondary"
                                 className="w-full rounded-xl bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-200"
@@ -568,7 +568,7 @@ const LandingPagePembeli = () => {
 
                         <div className="mt-12 text-center">
                             <Link
-                                href="/product"
+                                href="/login"
                                 className="inline-flex items-center justify-center rounded-xl bg-blue-100 px-6 py-3 text-base font-semibold text-blue-700 shadow-md transition-colors hover:bg-blue-200"
                             >
                                 Lihat Semua Produk
