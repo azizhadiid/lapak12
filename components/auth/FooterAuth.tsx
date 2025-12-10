@@ -1,9 +1,6 @@
-import { QrCode, Wallet } from "lucide-react";
 import Link from "next/link";
-import { BsInstagram } from "react-icons/bs";
-import { FaFacebook, FaFacebookSquare, FaInstagram, FaTiktok } from "react-icons/fa";
+import { FaFacebookSquare, FaInstagram, FaTiktok } from "react-icons/fa";
 import { FaSquareXTwitter } from "react-icons/fa6";
-import { FiTwitter } from "react-icons/fi";
 import { SiShopee } from "react-icons/si";
 
 export default function FooterAuth() {
