@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { Star, ShoppingCart, Plus, Minus, Store, MessageSquare, Clock, ArrowLeft, CheckCircle, Phone, DollarSign, XCircle, Package, AlertCircle, Send, Loader2 } from 'lucide-react';
+import { Star, ShoppingCart, Plus, Minus, Store, MessageSquare, Clock, ArrowLeft, CheckCircle, Phone, DollarSign, XCircle, Package, AlertCircle, Send, Loader2, Zap } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import MainLayoutPembeli from "../MainLayoutPembeli";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { toast } from 'sonner'; // <-- Import Toast untuk notifikasi umum
 
 // Import komponen Shadcn UI untuk Alert Konfirmasi
 import {
@@ -24,16 +25,17 @@ import {
 
 // Import komponen Shadcn UI untuk Notifikasi
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import Link from 'next/link';
 
 // =========================================================================
-// INTERFACE UNTUK ULASAN DARI DATABASE
+// INTERFACE (Tidak Berubah)
 // =========================================================================
 interface Review {
     id: string;
     rating: number;
     ungkapan_ulasan: string | null;
     created_at: string;
-    // Data dari Join (menggunakan alias 'ulasan_pembeli')
+    // Data dari Join
     ulasan_pembeli: {
         full_name: string | null;
         foto_url: string | null;
@@ -43,7 +45,6 @@ interface Review {
     } | null;
 }
 
-// Interface untuk data produk yang lebih jelas
 interface ProductData {
     id: string;
     penjual_id: string;
@@ -61,7 +62,6 @@ interface ProductData {
     } | null;
 }
 
-// Interface baru untuk data user yang diambil dari public.users
 interface UserProfile {
     id: string;
     username: string;
@@ -80,9 +80,6 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
     const [transactionStatus, setTransactionStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
     const [errorMessage, setErrorMessage] = useState<string>('');
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-
-    // State Notifikasi Keranjang/Umum
-    const [notification, setNotification] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
 
     // State untuk Ulasan
     const [reviewText, setReviewText] = useState<string>('');
@@ -108,10 +105,13 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
         }
     };
 
-    // Helper untuk notifikasi keranjang
+    // Helper untuk notifikasi keranjang (Ganti ke Toast)
     const showNotification = (type: 'success' | 'error', message: string) => {
-        setNotification({ type, message });
-        setTimeout(() => setNotification({ type: null, message: '' }), 5000);
+        if (type === 'success') {
+            toast.success(message);
+        } else {
+            toast.error(message);
+        }
     };
 
     // Helper untuk format tanggal ulasan
@@ -152,7 +152,7 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
 
         const { error } = await supabase
             .from('ulasan')
-            .insert({ // Menggunakan INSERT untuk menambah baris baru
+            .insert({
                 pembeli_id: pembeli_id,
                 produk_id: produk_id,
                 rating: reviewRating,
@@ -163,7 +163,12 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
 
         if (error) {
             console.error("Gagal mengirim ulasan:", error);
-            showNotification('error', `Gagal mengirim ulasan: ${error.message}.`);
+            // Tambahkan penanganan error jika user mencoba membuat ulasan kedua
+            if (error.message.includes('duplicate key value')) {
+                showNotification('error', 'Anda sudah memberikan ulasan untuk produk ini.');
+            } else {
+                showNotification('error', `Gagal mengirim ulasan: ${error.message}.`);
+            }
             return;
         }
 
@@ -205,10 +210,14 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
             const mappedReviews: Review[] = (data || []).map(r => {
                 const rawProfile = r.profile_pembeli as unknown;
 
-                // profile_pembeli bisa berbentuk array atau object
                 const profile = Array.isArray(rawProfile)
                     ? (rawProfile[0] as Record<string, unknown>)
                     : (rawProfile as Record<string, unknown>);
+
+                // Safety check untuk users (yang mungkin berupa array jika nested join)
+                const rawUsers = profile?.users as unknown;
+                const users = Array.isArray(rawUsers) ? (rawUsers[0] as Record<string, unknown>) : (rawUsers as Record<string, unknown>);
+
 
                 return {
                     id: r.id,
@@ -219,7 +228,7 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
                         full_name: profile.full_name as string | null,
                         foto_url: profile.foto_url as string | null,
                         users: {
-                            username: (profile.users as Record<string, unknown>)?.username as string,
+                            username: (users)?.username as string,
                         }
                     } : null
                 };
@@ -235,11 +244,9 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
 
 
     // ///////////////////////////////////////////////////////////////////////////////
-    // LOGIKA KERANJANG & BELI (Tidak berubah)
+    // LOGIKA KERANJANG & BELI (Diperbarui untuk menggunakan Toast)
     // ///////////////////////////////////////////////////////////////////////////////
     const handleAddToCart = async () => {
-        setNotification({ type: null, message: '' });
-
         if (!userProfile) {
             showNotification('error', 'Anda harus login untuk menambahkan produk ke keranjang.');
             return;
@@ -271,7 +278,7 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
             .from('keranjang')
             .select(`
                 produk_id,
-                produk:produk_id (penjual_id, profile_penjual (store_name))
+                produk_relasi:produk_id (penjual_id, profile_penjual (store_name))
             `)
             .eq('user_id', user_id);
 
@@ -284,11 +291,22 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
         if (cartItems && cartItems.length > 0) {
             const firstCartItem = cartItems[0];
 
-            const produk = firstCartItem.produk as unknown as Record<string, unknown>;
-            const profilePenjual = produk.profile_penjual as Record<string, unknown> | undefined;
+            // Safety check dan akses data join yang lebih baik
+            const relatedProduct = Array.isArray(firstCartItem.produk_relasi)
+                ? firstCartItem.produk_relasi[0]
+                : firstCartItem.produk_relasi;
 
-            const existing_penjual_id = produk.penjual_id as string | undefined;
-            const existing_store_name = profilePenjual?.store_name as string | undefined;
+            const relatedStoreProfile = Array.isArray(relatedProduct?.profile_penjual)
+                ? relatedProduct.profile_penjual[0]
+                : relatedProduct?.profile_penjual;
+
+            if (!relatedProduct) {
+                showNotification('error', 'Validasi gagal: Produk lama di keranjang tidak ditemukan.');
+                return;
+            }
+
+            const existing_penjual_id = relatedProduct.penjual_id;
+            const existing_store_name = relatedStoreProfile?.store_name || "Toko Tidak Dikenal";
 
             if (existing_penjual_id && existing_penjual_id !== new_penjual_id) {
                 showNotification(
@@ -418,7 +436,7 @@ Mohon konfirmasi pesanan saya. Terima kasih.
     };
 
 
-    // FETCH DATA
+    // FETCH DATA (Tidak Berubah)
     useEffect(() => {
         async function fetchData() {
             setLoading(true);
@@ -467,7 +485,7 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                     deskripsi,
                     keunggulan_produk,
                     jenis_produk,
-                    profile_penjual:profile_penjual (
+                    profile_penjual:penjual_id (
                         store_name, 
                         phone, 
                         status
@@ -523,12 +541,12 @@ Mohon konfirmasi pesanan saya. Terima kasih.
         const displayValue = interactive ? ratingValue : count;
 
         return (
-            <div className="flex gap-1">
+            <div className="flex gap-0.5"> {/* Mengurangi gap */}
                 {[1, 2, 3, 4, 5].map((star) => (
                     <Star
                         key={star}
                         // Jika bukan interaktif (display rata-rata), gunakan fill/text-yellow-400 jika star <= displayValue
-                        className={`${size} ${star <= displayValue ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'} ${interactive ? 'cursor-pointer hover:fill-yellow-400 hover:text-yellow-400' : ''}`}
+                        className={`${size} ${star <= displayValue ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'} ${interactive ? 'cursor-pointer hover:fill-yellow-400 hover:text-yellow-400 transition-colors' : ''}`}
                         onClick={() => interactive && setReviewRating(star)}
                     />
                 ))}
@@ -545,9 +563,28 @@ Mohon konfirmasi pesanan saya. Terima kasih.
     if (loading) {
         return (
             <MainLayoutPembeli>
-                <div className="w-full flex flex-col items-center justify-center py-20">
-                    <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-gray-600 mt-4">Memuat produk...</p>
+                {/* Skeleton Loading Lebih Modern */}
+                <div className="container mx-auto px-4 py-12 max-w-7xl">
+                    <div className="animate-pulse space-y-8">
+                        {/* Header & Image Placeholder */}
+                        <div className="h-8 bg-gray-200 w-40 rounded mb-6"></div>
+                        <div className="grid md:grid-cols-2 gap-8">
+                            <div className="h-96 bg-gray-100 rounded-xl"></div>
+                            <div className="space-y-6">
+                                <div className="h-4 bg-gray-200 w-32 rounded"></div>
+                                <div className="h-10 bg-gray-300 w-full rounded-lg"></div>
+                                <div className="h-6 bg-gray-200 w-1/3 rounded"></div>
+                                <div className="flex gap-4">
+                                    <div className="h-14 bg-blue-200 w-1/2 rounded-xl"></div>
+                                    <div className="h-14 bg-blue-300 w-1/2 rounded-xl"></div>
+                                </div>
+                            </div>
+                        </div>
+                        {/* Description Placeholder */}
+                        <div className="h-40 bg-gray-100 rounded-xl"></div>
+                        {/* Review Placeholder */}
+                        <div className="h-60 bg-gray-100 rounded-xl"></div>
+                    </div>
                 </div>
             </MainLayoutPembeli>
         );
@@ -581,131 +618,137 @@ Mohon konfirmasi pesanan saya. Terima kasih.
 
     return (
         <MainLayoutPembeli>
-            <div className="container mx-auto px-4 py-8 max-w-7xl">
-                {/* Notifikasi Keranjang */}
-                {notification.type && (
-                    <Alert
-                        variant={notification.type === 'error' ? 'destructive' : 'default'}
-                        className={`mb-4 ${notification.type === 'success' ? 'bg-green-50 text-green-700 border-green-300' : ''}`}
-                    >
-                        {notification.type === 'success' ? (
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                        ) : (
-                            <AlertCircle className="h-4 w-4" />
-                        )}
-                        <AlertTitle>{notification.type === 'success' ? 'Berhasil!' : 'Gagal!'}</AlertTitle>
-                        <AlertDescription>{notification.message}</AlertDescription>
-                    </Alert>
-                )}
+            {/* Mengganti container py-8 menjadi py-12 dan menambahkan padding lebih lega */}
+            <div className="container mx-auto px-4 py-12 max-w-7xl">
+                {/* Notifikasi Keranjang lama dihapus, ganti dengan Toast di function */}
 
                 {/* Bagian Navigasi/Kembali */}
                 <button
                     onClick={() => window.history.back()}
-                    className="flex items-center gap-2 text-gray-700 mb-6 hover:underline"
+                    className="flex items-center gap-2 text-gray-700 mb-8 hover:text-blue-600 transition-colors font-medium"
                 >
                     <ArrowLeft className="w-5 h-5" />
-                    Kembali
+                    Kembali ke Daftar Produk
                 </button>
+
                 {/* Product Section */}
-                <Card className="mb-8 overflow-hidden shadow-lg">
+                <Card className="mb-10 overflow-hidden shadow-2xl border-t-4 border-blue-600 rounded-xl">
                     <CardContent className="p-0">
-                        <div className="grid md:grid-cols-2 gap-8">
+                        <div className="grid md:grid-cols-2 gap-0">
                             {/* Product Image */}
-                            <div className="p-8 flex items-center justify-center">
-                                <div className="relative w-full h-full max-h-[480px] min-h-[300px] flex items-center justify-center bg-gray-50 rounded-xl overflow-hidden">
+                            {/* Memperbesar padding gambar di desktop, mengurangi di mobile */}
+                            <div className="p-6 md:p-12 flex items-center justify-center bg-gray-50 border-r border-gray-100">
+                                <div className="relative w-full max-w-md h-full min-h-[300px] flex items-center justify-center rounded-xl overflow-hidden shadow-xl">
                                     <img
                                         src={product.gambar || "/images/nothing.png"}
                                         alt={product.nama_produk}
                                         className="w-full h-full object-cover"
                                     />
                                 </div>
-
                             </div>
 
                             {/* Product Info */}
-                            <div className="p-8">
-                                <div className="mb-4">
-                                    <Badge variant="secondary" className="mb-2">
-                                        <Store className="w-3 h-3 mr-1" />
+                            <div className="p-6 md:p-10">
+                                <div className="mb-6 space-y-2">
+                                    <Badge
+                                        variant="secondary"
+                                        className="mb-2 bg-purple-100 text-purple-700 font-semibold text-xs py-1 px-3 shadow-sm"
+                                    >
+                                        <Store className="w-3.5 h-3.5 mr-1" />
                                         {product.profile_penjual?.store_name || "Toko Tidak Dikenal"}
                                     </Badge>
-                                    <h1 className="text-4xl font-bold text-gray-900 mb-3">{product.nama_produk}</h1>
+                                    <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight">
+                                        {product.nama_produk}
+                                    </h1>
 
-                                    {/* RATING DISPLAY BARU (PERBAIKAN BINTANG) */}
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <span className="text-2xl font-bold text-yellow-500">{averageRating}</span>
-                                        {/* Perbaikan: Menggunakan averageRating untuk mengisi bintang */}
-                                        {renderStars(parseFloat(averageRating), false, 'w-5 h-5')}
+                                    {/* RATING DISPLAY BARU */}
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-2xl font-bold text-yellow-500">{averageRating}</span>
+                                            {renderStars(parseFloat(averageRating), false, 'w-5 h-5')}
+                                        </div>
                                         <span className="text-sm text-gray-600">
                                             ({reviews.length} ulasan)
                                         </span>
                                     </div>
                                 </div>
 
-                                <div className="mb-6">
-                                    {/* HARGA DINAMIS */}
-                                    <div className="text-4xl font-bold text-blue-600 mb-2">
+                                <div className="mb-8 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                                    {/* HARGA DINAMIS DITONJOLKAN */}
+                                    <div className="text-sm font-semibold text-blue-700 mb-1">Harga Jual:</div>
+                                    <div className="text-4xl font-extrabold text-blue-600">
                                         {formatPrice(product.harga)}
                                     </div>
 
-                                    <Badge className={isRecommended ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"}>
-                                        <CheckCircle className="w-3 h-3 mr-1" />
+                                    <Badge
+                                        className={`mt-3 text-xs font-semibold px-3 py-1 ${isRecommended ? "bg-green-500 hover:bg-green-600 shadow-md" : "bg-red-500 hover:bg-red-600 shadow-md"}`}
+                                    >
+                                        {isRecommended ? <CheckCircle className="w-3 h-3 mr-1" /> : <AlertCircle className="w-3 h-3 mr-1" />}
                                         {isRecommended ? 'Toko Direkomendasikan' : 'Toko Tidak Direkomendasikan'}
                                     </Badge>
                                 </div>
 
-                                <div className={`text-sm mb-4 ${product.stok <= 5 ? 'text-red-500' : 'text-gray-600'}`}>
-                                    Stok tersedia: <span className="font-semibold">{product.stok}</span>
-                                    {product.stok <= 5 && <span className="ml-1 font-medium italic">(Hampir habis!)</span>}
+                                <div className={`text-base mb-6 font-medium ${product.stok <= 5 ? 'text-red-500' : 'text-gray-700'}`}>
+                                    Stok tersedia: <span className="font-extrabold">{product.stok}</span>
+                                    {product.stok <= 5 && <span className="ml-2 font-medium italic text-sm">(Hampir habis, buruan!)</span>}
                                 </div>
 
 
                                 {/* Quantity Selector */}
-                                <div className="mb-6">
-                                    <label className="text-sm font-medium text-gray-700 mb-2 block">Kuantitas</label>
+                                <div className="mb-8">
+                                    <label className="text-sm font-semibold text-gray-700 mb-2 block">Kuantitas</label>
                                     <div className="flex items-center gap-3">
                                         <Button
                                             variant="outline"
-                                            size="icon"
+                                            size="lg"
                                             onClick={() => handleQuantityChange('decrement')}
                                             disabled={quantity <= 1}
+                                            className='h-12 w-12 text-lg hover:bg-gray-100'
                                         >
-                                            <Minus className="w-4 h-4" />
+                                            <Minus className="w-5 h-5" />
                                         </Button>
-                                        <div className="w-16 text-center font-semibold text-lg">{quantity}</div>
+                                        <div className="w-16 text-center font-extrabold text-2xl border-y py-2 rounded-lg">{quantity}</div>
                                         <Button
                                             variant="outline"
-                                            size="icon"
+                                            size="lg"
                                             onClick={() => handleQuantityChange('increment')}
                                             disabled={quantity >= product.stok}
+                                            className='h-12 w-12 text-lg hover:bg-gray-100'
                                         >
-                                            <Plus className="w-4 h-4" />
+                                            <Plus className="w-5 h-5" />
                                         </Button>
                                     </div>
                                     {quantity >= product.stok && (
-                                        <p className="text-xs text-red-500 mt-1">Stok maksimum telah tercapai.</p>
+                                        <p className="text-xs text-red-500 mt-2 font-medium">Stok maksimum telah tercapai.</p>
                                     )}
                                 </div>
 
                                 {/* Action Buttons */}
-                                <div className="flex flex-col md:flex-row gap-4 mt-6 w-full">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6 w-full">
                                     <Button
                                         variant="outline"
-                                        className="flex-1 py-4 text-lg"
+                                        className="w-full py-3 px-4 h-14 text-lg 
+                   border-2 border-blue-600 text-blue-600 
+                   hover:bg-blue-50 font-semibold 
+                   whitespace-normal"
                                         size="lg"
                                         onClick={handleAddToCart}
                                         disabled={product.stok === 0 || !userProfile || quantity === 0}
                                     >
+                                        <ShoppingCart className="w-5 h-5 mr-3" />
                                         Tambah ke Keranjang
                                     </Button>
+
                                     <Button
-                                        className="flex-1 bg-blue-600 hover:bg-blue-700"
+                                        className="w-full bg-green-600 hover:bg-green-700 
+                   h-14 text-lg font-bold shadow-xl 
+                   shadow-green-400/30 whitespace-normal"
                                         size="lg"
                                         onClick={handleBuyNow}
                                         disabled={product.stok === 0 || !userProfile || quantity === 0}
                                     >
-                                        <ShoppingCart className="w-5 h-5 mr-2" />
-                                        {product.stok === 0 ? 'Stok Habis' : (!userProfile ? 'Login Dulu' : 'Beli Sekarang')}
+                                        <Zap className="w-5 h-5 mr-3" />
+                                        {product.stok === 0 ? 'Stok Habis' : (!userProfile ? 'Login Dulu' : 'Beli Langsung')}
                                     </Button>
                                 </div>
                             </div>
@@ -714,22 +757,24 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                 </Card>
 
                 {/* Description Section */}
-                <Card className="mb-8 shadow-lg">
-                    <CardHeader>
-                        <CardTitle className="text-2xl">Deskripsi Produk</CardTitle>
+                <Card className="mb-10 shadow-xl rounded-xl">
+                    <CardHeader className='border-b p-6 md:p-8'>
+                        <CardTitle className="text-2xl flex items-center gap-3 text-gray-800 font-bold">
+                            <MessageSquare className='w-6 h-6 text-purple-600' /> Deskripsi Produk
+                        </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                        <p className="text-gray-700 leading-relaxed">
+                    <CardContent className="space-y-6 p-6 md:p-8">
+                        <p className="text-gray-700 leading-relaxed text-base">
                             {product.deskripsi || "Tidak ada deskripsi yang tersedia untuk produk ini."}
                         </p>
 
-                        <div className="bg-gray-50 p-4 rounded-lg">
-                            <h3 className="font-semibold text-gray-900 mb-3">Keunggulan:</h3>
+                        <div className="bg-purple-50 p-5 rounded-xl border border-purple-200">
+                            <h3 className="font-extrabold text-purple-800 mb-3 text-lg">Keunggulan Produk:</h3>
                             <ul className="space-y-2 text-gray-700">
                                 {keunggulan.length > 0 ? (
                                     keunggulan.map((item, index) => (
-                                        <li key={index} className="flex items-start gap-2">
-                                            <span className="text-green-500 mt-1">✓</span>
+                                        <li key={index} className="flex items-start gap-2 text-base">
+                                            <span className="text-green-600 font-bold mt-1">✓</span>
                                             <span>{item}</span>
                                         </li>
                                     ))
@@ -742,39 +787,39 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                 </Card>
 
                 {/* Comments Section (ULASAN BARU) */}
-                <Card className="shadow-lg">
-                    <CardHeader>
-                        <CardTitle className="text-2xl flex items-center gap-2">
-                            <MessageSquare className="w-6 h-6" />
+                <Card className="shadow-xl rounded-xl">
+                    <CardHeader className='border-b p-6 md:p-8'>
+                        <CardTitle className="text-2xl flex items-center gap-3 text-gray-800 font-bold">
+                            <Star className="w-6 h-6 text-yellow-500" />
                             Ulasan Pembeli ({reviews.length})
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent className="space-y-8 p-6 md:p-8">
                         {/* Add Comment FORM */}
-                        <div className="bg-gray-50 p-6 rounded-lg space-y-4">
-                            <h3 className="font-semibold text-gray-900">Berikan Ulasan Anda</h3>
+                        <div className="bg-gray-50 p-6 rounded-xl space-y-4 border">
+                            <h3 className="font-bold text-lg text-gray-900">Berikan Ulasan Anda</h3>
 
                             {!userProfile ? (
-                                <Alert variant="default" className="text-center text-sm">
-                                    Silakan login untuk dapat memberikan ulasan pada produk ini.
+                                <Alert variant="default" className="text-center text-sm border-blue-300">
+                                    Silakan <Link href="/login" className="text-blue-600 underline font-semibold">login</Link> untuk dapat memberikan ulasan pada produk ini.
                                 </Alert>
                             ) : (
                                 <>
                                     <div>
-                                        <label className="text-sm text-gray-600 mb-2 block">Rating (1-5)</label>
-                                        {renderStars(0, true, 'w-8 h-8', reviewRating)}
+                                        <label className="text-sm font-medium text-gray-700 mb-2 block">Rating (1-5)</label>
+                                        {renderStars(0, true, 'w-7 h-7', reviewRating)}
                                     </div>
                                     <Textarea
                                         placeholder="Bagikan pengalaman Anda dengan produk ini..."
                                         value={reviewText}
                                         onChange={(e) => setReviewText(e.target.value)}
-                                        className="min-h-[100px]"
+                                        className="min-h-[100px] border-gray-300 focus:ring-blue-500"
                                         disabled={isSubmittingReview}
                                     />
                                     <Button
                                         onClick={handleSubmitReview}
                                         disabled={isSubmittingReview || reviewRating === 0}
-                                        className="bg-blue-600 hover:bg-blue-700"
+                                        className="bg-blue-600 hover:bg-blue-700 font-semibold px-6"
                                     >
                                         {isSubmittingReview ? (
                                             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
@@ -788,37 +833,34 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                         </div>
 
                         {/* Comments List */}
-                        <div className="space-y-4">
+                        <div className="space-y-6">
                             {reviews.map((review) => {
-                                // Fallback Logic yang disederhanakan: full_name -> username -> Pengguna Anonim
                                 const reviewerName = review.ulasan_pembeli?.full_name
                                     || review.ulasan_pembeli?.users.username
                                     || 'Pengguna Anonim';
                                 const reviewerPhoto = review.ulasan_pembeli?.foto_url;
 
                                 return (
-                                    <div key={review.id} className="border-b pb-4 last:border-b-0">
-                                        <div className="flex items-start gap-3">
-                                            <Avatar>
+                                    <div key={review.id} className="pb-6 border-b border-gray-100 last:border-b-0">
+                                        <div className="flex items-start gap-4">
+                                            <Avatar className='h-12 w-12'>
                                                 {reviewerPhoto && <AvatarImage src={reviewerPhoto} alt={reviewerName} />}
-                                                <AvatarFallback className="bg-blue-500 text-white">
+                                                <AvatarFallback className="bg-blue-100 text-blue-600 font-bold text-lg">
                                                     {reviewerName.charAt(0)}
                                                 </AvatarFallback>
                                             </Avatar>
                                             <div className="flex-1">
-                                                <div className="flex items-center justify-between mb-2">
+                                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2">
                                                     <div>
-                                                        <h4 className="font-semibold text-gray-900">{reviewerName}</h4>
-                                                        <div className="flex items-center gap-2">
-                                                            {renderStars(review.rating, false, 'w-4 h-4')}
-                                                        </div>
+                                                        <h4 className="font-bold text-gray-900 text-base">{reviewerName}</h4>
+                                                        {renderStars(review.rating, false, 'w-4 h-4')}
                                                     </div>
-                                                    <div className="flex items-center gap-1 text-sm text-gray-500">
+                                                    <div className="flex items-center gap-1 text-sm text-gray-500 mt-1 sm:mt-0">
                                                         <Clock className="w-4 h-4" />
                                                         {timeSince(review.created_at)}
                                                     </div>
                                                 </div>
-                                                <p className="text-gray-700">
+                                                <p className="text-gray-700 leading-relaxed text-base">
                                                     {review.ungkapan_ulasan || "*Tidak ada teks ulasan.*"}
                                                 </p>
                                             </div>
@@ -839,17 +881,17 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                 ALERT DIALOG KONFIRMASI / BILL
             //////////////////////////////////////////////////////////////////////////////// */}
             <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <AlertDialogContent>
+                <AlertDialogContent className='rounded-xl shadow-2xl'>
                     <AlertDialogHeader>
                         {transactionStatus === 'processing' && (
-                            <div className="flex flex-col items-center justify-center">
-                                <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                <AlertDialogTitle className="mt-4">Menyiapkan Pesanan...</AlertDialogTitle>
-                                <AlertDialogDescription>Harap tunggu sebentar, kami sedang menyiapkan tautan WhatsApp.</AlertDialogDescription>
+                            <div className="flex flex-col items-center justify-center py-4">
+                                <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
+                                <AlertDialogTitle className="mt-4 text-xl font-bold text-gray-800">Menyiapkan Pesanan...</AlertDialogTitle>
+                                <AlertDialogDescription className='text-center'>Harap tunggu sebentar, kami sedang menyiapkan tautan WhatsApp.</AlertDialogDescription>
                             </div>
                         )}
                         {transactionStatus === 'success' && (
-                            <div className="flex flex-col items-center justify-center text-green-600">
+                            <div className="flex flex-col items-center justify-center py-4 text-green-600">
                                 <CheckCircle className="w-10 h-10 mb-2" />
                                 <AlertDialogTitle className="text-2xl font-bold">Siap Menghubungi Penjual!</AlertDialogTitle>
                                 <AlertDialogDescription className="text-center">
@@ -858,7 +900,7 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                             </div>
                         )}
                         {transactionStatus === 'error' && (
-                            <div className="flex flex-col items-center justify-center text-red-600">
+                            <div className="flex flex-col items-center justify-center py-4 text-red-600">
                                 <XCircle className="w-10 h-10 mb-2" />
                                 <AlertDialogTitle className="text-2xl font-bold">Gagal Membuat Tautan</AlertDialogTitle>
                                 <AlertDialogDescription className="text-center">
@@ -868,7 +910,7 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                         )}
                         {transactionStatus === 'idle' && (
                             <>
-                                <AlertDialogTitle className="text-2xl font-bold">Konfirmasi Pembelian</AlertDialogTitle>
+                                <AlertDialogTitle className="text-2xl font-bold text-gray-900">Konfirmasi Pembelian</AlertDialogTitle>
                                 <AlertDialogDescription>
                                     Pastikan detail pesanan sudah benar. Anda akan dihubungkan ke WhatsApp Penjual.
                                 </AlertDialogDescription>
@@ -877,40 +919,33 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                     </AlertDialogHeader>
 
                     {transactionStatus === 'idle' && (
-                        <div className="space-y-3 p-4 border rounded-lg bg-gray-50">
-                            <h3 className="text-lg font-semibold border-b pb-2 flex items-center gap-2 text-gray-700">
-                                <DollarSign className="w-5 h-5" /> Detail Bill
+                        <div className="space-y-4 p-5 border rounded-xl bg-blue-50 shadow-inner">
+                            <h3 className="text-lg font-extrabold border-b pb-3 flex items-center gap-2 text-blue-800">
+                                <DollarSign className="w-5 h-5" /> Detail Bill Transaksi
                             </h3>
 
-                            <div className="flex justify-between text-sm">
+                            <div className="grid grid-cols-2 gap-y-2 text-sm">
                                 <span className="text-gray-600 flex items-center gap-1"><Store className="w-4 h-4" /> Toko</span>
-                                <span className="font-medium">{product.profile_penjual?.store_name || "Toko Tidak Dikenal"}</span>
-                            </div>
+                                <span className="font-medium text-right">{product.profile_penjual?.store_name || "Toko Tidak Dikenal"}</span>
 
-                            <div className="flex justify-between text-sm">
                                 <span className="text-gray-600 flex items-center gap-1">👤 Pembeli</span>
-                                <span className="font-medium">{userProfile?.username || "Loading..."}</span>
-                            </div>
+                                <span className="font-medium text-right">{userProfile?.username || "Loading..."}</span>
 
-
-                            <div className="flex justify-between text-sm">
                                 <span className="text-gray-600 flex items-center gap-1"><Package className="w-4 h-4" /> Produk</span>
-                                <span className="font-medium">{product.nama_produk}</span>
-                            </div>
+                                <span className="font-medium text-right">{product.nama_produk}</span>
 
-                            <div className="flex justify-between text-sm">
                                 <span className="text-gray-600 flex items-center gap-1"><Plus className="w-4 h-4" /> Jumlah Beli</span>
-                                <span className="font-medium">{quantity} x {formatPrice(product.harga)}</span>
+                                <span className="font-medium text-right">{quantity} x {formatPrice(product.harga)}</span>
                             </div>
 
-                            <div className="flex justify-between pt-2 border-t border-dashed border-gray-300">
-                                <span className="text-lg font-bold text-gray-800">Total Harga</span>
-                                <span className="text-xl font-extrabold text-blue-600">{formatPrice(totalBill)}</span>
+                            <div className="flex justify-between pt-3 border-t border-dashed border-blue-300 mt-4">
+                                <span className="text-xl font-bold text-gray-800">Total Harga</span>
+                                <span className="text-2xl font-extrabold text-green-600">{formatPrice(totalBill)}</span>
                             </div>
 
-                            <div className="pt-3 border-t mt-4 flex items-center gap-2 text-sm text-blue-600">
-                                <Phone className="w-4 h-4" />
-                                <span>Hubungi Penjual: {storePhoneNumber}</span>
+                            <div className="pt-3 border-t mt-4 flex items-center gap-2 text-sm text-green-700 font-semibold bg-green-100 p-3 rounded-lg">
+                                <Phone className="w-5 h-5" />
+                                <span>Hubungi Penjual (WA): {storePhoneNumber}</span>
                             </div>
                         </div>
                     )}
@@ -920,13 +955,13 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                             <>
                                 <AlertDialogCancel
                                     onClick={() => setIsDialogOpen(false)}
-                                    className='hover:bg-gray-100'
+                                    className='hover:bg-gray-100 px-6 py-2'
                                 >
                                     Batal Membeli
                                 </AlertDialogCancel>
                                 <AlertDialogAction
                                     onClick={confirmPayment}
-                                    className='bg-green-600 hover:bg-green-700'
+                                    className='bg-green-600 hover:bg-green-700 font-bold px-6 py-2'
                                     disabled={!userProfile}
                                 >
                                     <Phone className="w-4 h-4 mr-2" />
@@ -939,6 +974,7 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                             <Button
                                 onClick={() => setIsDialogOpen(false)}
                                 variant="outline"
+                                className='px-6 py-2'
                             >
                                 Tutup
                             </Button>
