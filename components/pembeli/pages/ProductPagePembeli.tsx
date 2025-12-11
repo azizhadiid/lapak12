@@ -10,24 +10,11 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 // import { useAuth } from '@/hooks/useAuth'; // Asumsi Anda memiliki hook untuk user/session
+import { toast } from 'sonner';
 
 // Asumsi path untuk gambar pengganti
 const NO_IMAGE_PLACEHOLDER = '/images/nothing.png';
 const PRODUCTS_PER_PAGE = 10; // Menampilkan 10 produk per halaman
-
-interface ProfilePenjual {
-    store_name: string;
-}
-
-interface ProductInCart {
-    penjual_id: string;
-    profile_penjual: ProfilePenjual[];
-}
-
-interface CartItem {
-    produk: ProductInCart[];
-}
-
 
 // Types
 interface Product {
@@ -155,25 +142,25 @@ export default function ProductPagePembeli() {
     const [notification, setNotification] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
 
     // Helper untuk menampilkan notifikasi dan menghilangkannya
-    const showNotification = (type: 'success' | 'error', message: string) => {
-        setNotification({ type, message });
-        setTimeout(() => setNotification({ type: null, message: '' }), 5000);
-    };
+    // const showNotification = (type: 'success' | 'error', message: string) => {
+    //     setNotification({ type, message });
+    //     setTimeout(() => setNotification({ type: null, message: '' }), 5000);
+    // };
 
 
     // --- LOGIKA ADD TO CART (UTAMA) ---
     const handleAddToCart = async (product: Product) => {
-        setNotification({ type: null, message: '' }); // Reset notifikasi
+        // setNotification({ type: null, message: '' }); // Reset notifikasi
 
         const { data: { user } } = await supabase.auth.getUser();
 
         if (!user) {
-            showNotification('error', 'Anda harus login untuk menambahkan produk ke keranjang.');
+            toast.error('Anda harus login untuk menambahkan produk ke keranjang.'); // <-- Ganti
             return;
         }
 
         if (product.stok === 0) {
-            showNotification('error', 'Stok produk ini sudah habis.');
+            toast.error('Stok produk ini sudah habis.'); // <-- Ganti
             return;
         }
 
@@ -194,28 +181,40 @@ export default function ProductPagePembeli() {
             .from('keranjang')
             .select(`
                 produk_id,
-                produk:produk_id (penjual_id, profile_penjual (store_name))
+                produk_relasi:produk_id (penjual_id, profile_penjual (store_name))
             `)
             .eq('user_id', user_id);
 
         if (cartError) {
             console.error("Error fetching cart items:", cartError);
-            showNotification('error', 'Gagal memuat keranjang untuk validasi.');
+            toast.error('Gagal memuat keranjang untuk validasi.'); // <-- Ganti
             return;
         }
 
         if (cartItems && cartItems.length > 0) {
-
             const firstCartItem = cartItems[0];
 
-            const firstProduct = firstCartItem.produk[0]; // ← penting!
+            // PASTIKAN PRODUK TIDAK NULL/UNDEFINED dan ambil objek pertama jika array
+            const relatedProduct = Array.isArray(firstCartItem.produk_relasi)
+                ? firstCartItem.produk_relasi[0]
+                : firstCartItem.produk_relasi;
 
-            const existing_penjual_id = firstProduct.penjual_id;
-            const existing_store_name = firstProduct.profile_penjual?.[0]?.store_name;
+            // PASTIKAN PROFILE PENJUAL TIDAK NULL/UNDEFINED dan ambil objek pertama jika array
+            const relatedStoreProfile = Array.isArray(relatedProduct?.profile_penjual)
+                ? relatedProduct.profile_penjual[0]
+                : relatedProduct?.profile_penjual;
+
+            // Jika produk yang sudah ada di keranjang tidak memiliki relasi
+            if (!relatedProduct) {
+                toast.error('Validasi gagal: Produk lama di keranjang tidak ditemukan.');
+                return;
+            }
+
+            const existing_penjual_id = relatedProduct.penjual_id;
+            const existing_store_name = relatedStoreProfile?.store_name || "Toko Tidak Dikenal";
 
             if (existing_penjual_id && existing_penjual_id !== new_penjual_id) {
-                showNotification(
-                    'error',
+                toast.error(
                     `Produk harus dari toko yang sama. Keranjang Anda sudah berisi produk dari toko ${existing_store_name}.`
                 );
                 return;
@@ -242,7 +241,9 @@ export default function ProductPagePembeli() {
             if (fetchError || !currentItem) {
                 // Handle error saat fetch jumlah produk yang sudah ada
                 console.error("Error fetching existing item quantity:", fetchError);
-                showNotification('error', 'Gagal memverifikasi item di keranjang.');
+                toast.error(
+                    'Gagal memverifikasi item di keranjang.'
+                );
                 return;
             }
 
@@ -250,7 +251,7 @@ export default function ProductPagePembeli() {
 
             // Cek Stok lagi setelah penambahan
             if (new_quantity > product.stok) {
-                showNotification('error', `Gagal: Stok hanya tersisa ${product.stok}. Anda sudah memilih ${currentItem.jumlah_produk_dipilih}.`);
+                toast.error(`Gagal: Stok hanya tersisa ${product.stok}. Anda sudah memilih ${currentItem.jumlah_produk_dipilih}.`); // <-- Ganti
                 return;
             }
 
@@ -266,11 +267,11 @@ export default function ProductPagePembeli() {
 
             if (updateError) {
                 console.error("Error updating cart item:", updateError);
-                showNotification('error', `Gagal mengupdate keranjang: ${updateError.message}`);
+                toast.error(`Gagal mengupdate keranjang: ${updateError.message}`); // <-- Ganti
                 return;
             }
 
-            showNotification('success', `Jumlah ${product.nama_produk} di keranjang berhasil ditambahkan menjadi ${new_quantity}!`);
+            toast.success(`Jumlah ${product.nama_produk} di keranjang berhasil ditambahkan menjadi ${new_quantity}!`);
 
         } else {
             // Jika produk belum ada, lakukan INSERT
@@ -285,11 +286,11 @@ export default function ProductPagePembeli() {
 
             if (insertError) {
                 console.error("Error inserting cart item:", insertError);
-                showNotification('error', `Gagal menambahkan produk ke keranjang: ${insertError.message}`);
+                toast.error(`Gagal menambahkan produk ke keranjang: ${insertError.message}`); // <-- Ganti
                 return;
             }
 
-            showNotification('success', `Produk ${product.nama_produk} berhasil ditambahkan ke keranjang! Toko: ${new_store_name}`);
+            toast.success(`Produk ${product.nama_produk} berhasil ditambahkan ke keranjang! Toko: ${new_store_name}`);
         }
     };
 
@@ -492,7 +493,7 @@ export default function ProductPagePembeli() {
                 </section>
 
                 {/* Notifikasi / Alert */}
-                {notification.type && (
+                {/* {notification.type && (
                     <Alert
                         variant={notification.type === 'error' ? 'destructive' : 'default'}
                         className={`mb-4 ${notification.type === 'success' ? 'bg-green-50 text-green-700 border-green-300' : ''}`}
@@ -505,7 +506,7 @@ export default function ProductPagePembeli() {
                         <AlertTitle>{notification.type === 'success' ? 'Berhasil!' : 'Gagal!'}</AlertTitle>
                         <AlertDescription>{notification.message}</AlertDescription>
                     </Alert>
-                )}
+                )} */}
 
                 {/* Products */}
                 <section>
