@@ -416,7 +416,7 @@ const LandingPagePembeli = () => {
 
                             <div className="mt-10 flex flex-col gap-4 sm:flex-row">
                                 <Button size="lg" className='bg-blue-600 hover:bg-blue-700' asChild>
-                                    <Link href="/product">Mulai Belanja</Link>
+                                    <Link href="/login">Mulai Belanja</Link>
                                 </Button>
 
                                 <Button

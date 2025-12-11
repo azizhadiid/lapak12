@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🚀 LAPAK12: Marketplace Komunitas RT 12 Kemajuan
 
-## Getting Started
+Sistem Informasi Marketplace Komunitas **Lapak12** dirancang untuk memberdayakan UMKM warga RT 12 Kemajuan, Desa Mendalo Indah, melalui digitalisasi pemasaran dan peningkatan literasi digital masyarakat.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 📅 Informasi Proyek
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Kategori | Detail |
+| :--- | :--- |
+| **Mata Kuliah** | Manajemen Perubahan Sistem Informasi (MPPSI) |
+| **Dosen Pengampu** | Miranty Yudistira, S.SI., M.Kom. dan Dedy Setiawan, S.Kom., M.IT. |
+| **Institusi** | Fakultas Sains dan Teknologi, Universitas Jambi |
+| **Tahun** | 2025 |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🎯 Tujuan & Latar Belakang
 
-## Learn More
+### Latar Belakang Singkat
+Proyek ini dibuat untuk mengatasi keterbatasan pemasaran tradisional dan rendahnya tingkat kepercayaan dalam transaksi digital di lingkungan RT 12 Kemajuan. Meskipun memiliki banyak potensi UMKM, warga belum memiliki wadah digital yang efektif untuk memasarkan produk atau jasa secara lebih luas.
 
-To learn more about Next.js, take a look at the following resources:
+### Tujuan Utama Proyek
+Tujuan pengembangan Sistem Informasi Marketplace **Lapak12** mencakup:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+* Menyediakan wadah digital bagi warga RT 12 untuk memasarkan produk dan jasa secara lebih luas, terstruktur, dan efisien.
+* Meningkatkan aksesibilitas dan jangkauan pasar bagi pelaku UMKM lokal.
+* Membangun kepercayaan antarwarga dalam transaksi *online* melalui sistem verifikasi, transparansi, dan pengawasan.
+* Mendorong literasi digital dengan menyediakan platform yang sederhana dan mudah digunakan.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 🛠️ Technology Stack & Metodologi
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Metode Pengembangan Sistem
+Proyek ini menggunakan **Model Waterfall**, yang terdiri dari tahapan analisis kebutuhan, perancangan, implementasi, pengujian, dan pemeliharaan.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Stack Teknis
+
+| Komponen | Teknologi | Keterangan |
+| :--- | :--- | :--- |
+| **Frontend** | React.js (Next.js) | Membangun UI berbasis komponen. |
+| **Backend Logic** | TypeScript | Mengelola logika bisnis dan komunikasi data. |
+| **Database** | Supabase PostgreSQL | Menyimpan seluruh data secara *online*. |
+| **Styling** | Tailwind CSS & Shadcn/ui | Desain modern dan responsif. |
+
+### Arsitektur Data (Gambaran ERD)
+Beberapa relasi kunci dalam sistem:
+
+1. **Users** terhubung dengan **Profile Pembeli/Penjual** (1-to-1).
+2. **Produk** terhubung dengan **Profile Penjual**.
+3. **Keranjang** terhubung dengan **Users** dan **Produk**.
+4. **Penjualan** mencatat transaksi dan pengurangan stok produk.
+
+---
+
+## 🌟 Fitur Kunci Aplikasi
+
+### Fitur Utama Pengguna
+* **Registrasi & Login** untuk semua pengguna.
+* **Katalog Produk:** Pembeli dapat melihat daftar produk serta melakukan pencarian dan filter.
+* **Pemesanan via WhatsApp:** Checkout cepat langsung melalui WA.
+* **Manajemen Keranjang:** Menambah item, mengurangi jumlah, dan menghapus produk.
+* **Ulasan Produk:** Pembeli dapat memberi rating dan review.
+* **Manajemen Produk:** Penjual dapat menambah, mengedit, dan menghapus produk (foto, harga, stok).
+* **Pencatatan Penjualan:** Otomatis mengurangi stok.
+
+### Fitur Admin
+* **Verifikasi Pengguna:** Menyetujui atau menandai status baik/buruk untuk Penjual dan Pembeli.
+* **Dashboard Pengawasan:** Menampilkan statistik aktivitas transaksi, produk aktif, dan perkembangan marketplace.
+
+---
+
+## 👥 Tim Pengembang
+
+| Nama | NIM | Peran |
+| :--- | :--- | :--- |
+| **Aziz Alhadiid** | F1E123024 | Project Manager & Fullstack Developer |
+| **Daffa Dzulfaqor Dhiya Ulhaq** | F1E123023 | UI/UX Designer |
+| **Irfan Aziz** | F1E123022 | Front-End Developer |
+
+---
+
+## 📌 Catatan
+Repository ini dibuat untuk keperluan mata kuliah MPPSI dan sebagai prototipe digitalisasi UMKM komunitas RT 12 Kemajuan.
+
