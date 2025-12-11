@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Minus, Plus, ArrowLeft, X, Loader2, Store, ShoppingBasket, Phone, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
+import { Minus, Plus, ArrowLeft, X, Loader2, Store, ShoppingBasket, Phone, CheckCircle, AlertCircle, Trash2, Tag, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import MainLayoutPembeli from '../MainLayoutPembeli';
@@ -9,6 +9,7 @@ import { FaWhatsapp } from 'react-icons/fa';
 import Link from 'next/link';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { toast } from 'sonner'; // Asumsi Toast System terpasang
 
 // Import komponen Shadcn UI untuk Alert Konfirmasi
 import {
@@ -21,6 +22,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import Swal from 'sweetalert2';
 
 
 // Interface untuk Profile Penjual (diambil dari join)
@@ -68,8 +70,8 @@ export default function KeranjangPagePembeli() {
     const [error, setError] = useState<string | null>(null);
     const [notification, setNotification] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
     const [isClearCartDialogOpen, setIsClearCartDialogOpen] = useState(false);
-    const [userProfile, setUserProfile] = useState<UserProfile | null>(null); // Tambah state user profile
-    const [isCheckoutProcessing, setIsCheckoutProcessing] = useState(false); // State untuk tombol checkout
+    const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+    const [isCheckoutProcessing, setIsCheckoutProcessing] = useState(false);
 
     // --- Helpers ---
     const formatRupiah = (value: number) =>
@@ -79,9 +81,13 @@ export default function KeranjangPagePembeli() {
             minimumFractionDigits: 0,
         }).format(value);
 
+    // Mengganti showNotification dengan toast
     const showNotification = (type: 'success' | 'error', message: string) => {
-        setNotification({ type, message });
-        setTimeout(() => setNotification({ type: null, message: '' }), 5000);
+        if (type === 'success') {
+            toast.success(message);
+        } else {
+            toast.error(message);
+        }
     };
 
 
@@ -238,7 +244,6 @@ Mohon konfirmasi pesanan ini dan panduan pembayarannya. Terima kasih.
         window.open(waUrl, '_blank');
 
         // 4. Hapus Isi Keranjang setelah redirect (Asumsi transaksi WA berhasil)
-        // Kita berikan sedikit waktu agar user melihat status 'processing' sebelum redirect
         setTimeout(async () => {
             const { error: deleteError } = await supabase
                 .from('keranjang')
@@ -305,24 +310,54 @@ Mohon konfirmasi pesanan ini dan panduan pembayarannya. Terima kasih.
 
     // FUNGSI HAPUS ITEM KERANJANG
     const removeItem = async (itemId: string, productName: string) => {
+        // Reset notifikasi lama
         setNotification({ type: null, message: '' });
 
-        if (window.confirm(`Apakah Anda yakin ingin menghapus produk "${productName}" dari keranjang?`)) {
+        // Tampilkan konfirmasi SweetAlert2
+        const result = await Swal.fire({
+            title: "Hapus Produk?",
+            html: `Apakah Anda yakin ingin menghapus <b>${productName}</b> dari keranjang?`,
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#d33",
+            cancelButtonColor: "#3085d6",
+            confirmButtonText: "Ya, hapus",
+            cancelButtonText: "Batal",
+            reverseButtons: true,
+        });
 
-            const { error: deleteError } = await supabase
-                .from('keranjang')
-                .delete()
-                .eq('id', itemId);
+        // Jika user klik batal → berhenti
+        if (!result.isConfirmed) return;
 
-            if (deleteError) {
-                console.error("Error deleting item:", deleteError);
-                showNotification('error', `Gagal menghapus item: ${deleteError.message}`);
-                return;
-            }
+        // Proses hapus item dari database
+        const { error: deleteError } = await supabase
+            .from("keranjang")
+            .delete()
+            .eq("id", itemId);
 
-            showNotification('success', `Produk ${productName} berhasil dihapus dari keranjang.`);
-            fetchCartItems();
+        if (deleteError) {
+            console.error("Error deleting item:", deleteError);
+
+            Swal.fire({
+                icon: "error",
+                title: "Gagal!",
+                text: `Gagal menghapus item: ${deleteError.message}`,
+            });
+
+            return;
         }
+
+        // Jika sukses
+        Swal.fire({
+            icon: "success",
+            title: "Berhasil!",
+            text: `Produk ${productName} berhasil dihapus dari keranjang.`,
+            timer: 1800,
+            showConfirmButton: false,
+        });
+
+        // Refresh keranjang
+        fetchCartItems();
     };
 
     // FUNGSI BERSIHKAN KERANJANG
@@ -390,7 +425,7 @@ Mohon konfirmasi pesanan ini dan panduan pembayarannya. Terima kasih.
                     <ShoppingBasket className="w-16 h-16 mx-auto text-gray-400 mb-4" />
                     <h1 className="text-2xl font-bold text-gray-900 mb-2">Keranjang Anda Kosong</h1>
                     <p className="text-gray-600 mb-6">Yuk, temukan produk menarik dari penjual di RT 12!</p>
-                    <Link href="/produk" passHref>
+                    <Link href="/product" passHref>
                         <Button className="bg-blue-600 hover:bg-blue-700">Mulai Belanja</Button>
                     </Link>
                 </div>
@@ -413,7 +448,7 @@ Mohon konfirmasi pesanan ini dan panduan pembayarannya. Terima kasih.
 
     return (
         <MainLayoutPembeli>
-            <div className="container mx-auto px-4 py-8">
+            <div className="container mx-auto px-4 py-10 md:py-12">
                 {/* Notifikasi */}
                 {notification.type && (
                     <Alert
@@ -430,52 +465,60 @@ Mohon konfirmasi pesanan ini dan panduan pembayarannya. Terima kasih.
                     </Alert>
                 )}
 
-                <div className="mb-6 flex justify-between items-center">
-                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight">
                         Keranjang Belanja
                     </h1>
                     {sellerInfo && (
-                        <div className="flex items-center gap-2 text-sm text-gray-600 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                            <Store className="w-4 h-4 text-blue-600" />
-                            <span>Dari Toko:
-                                <span className="font-semibold text-blue-700 ml-1">
+                        <div className="
+        flex flex-wrap items-center gap-2 
+        text-md text-gray-700 
+        p-3 bg-blue-50 border border-blue-200 
+        rounded-xl 
+        shadow-sm
+        max-w-full sm:max-w-fit
+    ">
+                            <Store className="w-5 h-5 text-blue-600" />
+                            <span className='font-medium'>
+                                Pesanan dari Toko:
+                                <span className="font-bold text-blue-700 ml-1">
                                     {sellerInfo.store_name}
                                 </span>
+                            </span>
+                            {/* Status Toko */}
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${sellerInfo.status === false ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                                {sellerInfo.status === false ? 'Rekomendasi' : 'Non-Rekomendasi'}
                             </span>
                         </div>
                     )}
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Cart Items Section */}
-                    <div className="lg:col-span-2 space-y-4">
-                        {/* Header */}
-                        <div className="hidden md:grid md:grid-cols-12 gap-4 pb-4 border-b-2 border-blue-600 font-semibold text-gray-700">
-                            <div className="col-span-5">PRODUK</div>
-                            <div className="col-span-2 text-center">HARGA SATUAN</div>
-                            <div className="col-span-3 text-center">JUMLAH</div>
-                            <div className="col-span-2 text-center">SUBTOTAL</div>
-                        </div>
+                    <div className="lg:col-span-2 space-y-5">
 
-                        {/* Cart Items */}
+                        {/* Cart Items List */}
                         {cartItems.map(item => (
-                            <Card key={item.id} className="shadow-sm relative">
+                            <Card key={item.id} className="shadow-lg hover:shadow-xl transition-shadow border-l-4 border-blue-600 relative">
+                                {/* Pastikan Card memiliki class 'relative' */}
 
-                                {/* Tombol Silang (X) di pojok kanan atas */}
+                                {/* Tombol Silang (X) di pojok kanan atas untuk Hapus Item */}
                                 <button
                                     onClick={() => removeItem(item.id, item.produk.nama_produk)}
-                                    className="absolute top-2 right-2 text-gray-400 hover:text-red-600"
+                                    // Posisi absolute, di luar aliran grid
+                                    className="absolute top-2 right-2 text-gray-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors z-20"
                                     title={`Hapus ${item.produk.nama_produk}`}
                                 >
                                     <X className="w-5 h-5" />
                                 </button>
 
                                 <CardContent className="p-4 md:p-6">
+                                    {/* Grid Item (Mobile & Desktop) */}
                                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
 
-                                        {/* Product Info */}
-                                        <div className="md:col-span-5 flex gap-4 items-center">
-                                            <div className="w-20 h-20 bg-gray-100 rounded flex items-center justify-center text-4xl flex-shrink-0 overflow-hidden">
+                                        {/* Product Info (Col 1-5) */}
+                                        <div className="md:col-span-5 flex gap-4 items-start pr-8"> {/* Menambahkan pr-8 agar teks tidak menabrak tombol X */}
+                                            <div className="w-24 h-24 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden shadow-md">
                                                 <img
                                                     src={item.produk.gambar || "/images/nothing.png"}
                                                     alt={item.produk.nama_produk}
@@ -483,56 +526,59 @@ Mohon konfirmasi pesanan ini dan panduan pembayarannya. Terima kasih.
                                                 />
                                             </div>
 
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="font-medium text-gray-900 mb-1 line-clamp-2">{item.produk.nama_produk}</h3>
-                                                <p className="text-sm text-red-500">Stok: {item.produk.stok}</p>
+                                            <div className="flex-1 pt-1 min-w-0">
+                                                <h3 className="font-bold text-gray-900 mb-1 line-clamp-2 text-lg">{item.produk.nama_produk}</h3>
+                                                <p className="text-sm text-red-500 font-medium flex items-center gap-1">
+                                                    <AlertCircle className='w-4 h-4' /> Stok Tersisa: {item.produk.stok}
+                                                </p>
+                                                <p className="text-sm text-gray-500 mt-2 flex items-center gap-1">
+                                                    <Tag className='w-4 h-4' /> Harga Satuan:
+                                                    <span className='font-semibold text-gray-800'>
+                                                        {formatRupiah(item.produk.harga)}
+                                                    </span>
+                                                </p>
                                             </div>
                                         </div>
 
-                                        {/* Price */}
-                                        <div className="md:col-span-2 flex md:justify-center items-center gap-2">
-                                            <span className="md:hidden font-medium text-gray-700">Harga Satuan:</span>
-                                            <span className="font-semibold text-gray-900">
-                                                {formatRupiah(item.produk.harga)}
-                                            </span>
-                                        </div>
+                                        {/* Separator Mobile */}
+                                        <div className='block md:hidden border-t pt-4 mt-4'></div>
 
-                                        {/* Quantity */}
-                                        <div className="md:col-span-3 flex md:justify-center items-center gap-2">
-                                            <span className="md:hidden font-medium text-gray-700">Jumlah:</span>
 
-                                            <div className="flex items-center gap-2 border rounded-lg">
-                                                {/* Tombol Minus (Kurang Jumlah) */}
+                                        {/* Quantity & Update (Col 6-8) */}
+                                        <div className="md:col-span-4 flex md:justify-center items-center gap-2">
+                                            <span className="md:hidden font-semibold text-gray-700 mr-2">Ubah Jumlah:</span>
+
+                                            <div className="flex items-center gap-1 border border-gray-300 rounded-xl shadow-sm overflow-hidden">
+                                                {/* Tombol Minus */}
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => updateQuantity(item.id, item, -1)}
                                                     disabled={item.jumlah_produk_dipilih <= 1}
-                                                    className="h-10 w-10 p-0 hover:bg-gray-100"
+                                                    className="h-10 w-10 p-0 text-blue-600 hover:bg-blue-50"
                                                 >
-                                                    <Minus className="w-4 h-4" />
+                                                    <Minus className="w-5 h-5" />
                                                 </Button>
 
-                                                <span className="w-12 text-center font-medium">{item.jumlah_produk_dipilih}</span>
+                                                <span className="w-12 text-center font-bold text-lg text-gray-900">{item.jumlah_produk_dipilih}</span>
 
-                                                {/* Tombol Plus (Tambah Jumlah) */}
+                                                {/* Tombol Plus */}
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => updateQuantity(item.id, item, 1)}
                                                     disabled={item.jumlah_produk_dipilih >= item.produk.stok}
-                                                    className="h-10 w-10 p-0 hover:bg-gray-100"
+                                                    className="h-10 w-10 p-0 text-blue-600 hover:bg-blue-50"
                                                 >
-                                                    <Plus className="w-4 h-4" />
+                                                    <Plus className="w-5 h-5" />
                                                 </Button>
                                             </div>
                                         </div>
 
-                                        {/* Total */}
-                                        <div className="md:col-span-2 flex md:justify-center items-center gap-2">
-                                            <span className="md:hidden font-medium text-gray-700">Subtotal Item:</span>
-
-                                            <span className="font-bold text-lg text-blue-600">
+                                        {/* Total (Col 9-12) */}
+                                        <div className="md:col-span-3 flex md:justify-end items-center gap-2">
+                                            <span className="md:hidden font-semibold text-gray-700">Subtotal Item:</span>
+                                            <span className="font-extrabold text-xl text-green-600">
                                                 {formatRupiah(item.total)}
                                             </span>
                                         </div>
@@ -541,19 +587,19 @@ Mohon konfirmasi pesanan ini dan panduan pembayarannya. Terima kasih.
                             </Card>
                         ))}
 
-                        {/* Action Buttons */}
-                        <div className="flex flex-col sm:flex-row justify-between gap-3">
-                            <Link href="/produk" passHref>
-                                <Button variant="outline" className="flex items-center gap-2" >
+                        {/* Action Buttons Footer */}
+                        <div className="flex flex-col sm:flex-row gap-3 pt-4 w-full">
+                            <Link href="/product" passHref className="w-full sm:w-auto">
+                                <Button variant="outline" className="flex items-center gap-2 h-11 w-full sm:w-auto">
                                     <ArrowLeft className="w-4 h-4" />
                                     Lanjutkan Berbelanja
                                 </Button>
                             </Link>
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                {/* Tombol Bersihkan */}
+
+                            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                                 <Button
                                     variant="outline"
-                                    className="border-red-500 text-red-500 hover:bg-red-50"
+                                    className="border-red-500 text-red-500 hover:bg-red-50 h-11 w-full sm:w-auto"
                                     onClick={() => setIsClearCartDialogOpen(true)}
                                     disabled={cartItems.length === 0}
                                 >
@@ -566,30 +612,41 @@ Mohon konfirmasi pesanan ini dan panduan pembayarannya. Terima kasih.
 
                     {/* Ringkasan Pemesanan Section */}
                     <div className="lg:col-span-1">
-                        <Card className="shadow-md sticky top-8">
-                            <CardContent className="p-6">
-                                <h2 className="text-xl font-bold mb-6 pb-3 border-b-2 border-blue-600">
-                                    Ringkasan Pemesanan
+                        <Card className="shadow-2xl border-t-4 border-green-600 sticky top-4 rounded-xl">
+                            <CardContent className="p-6 md:p-8">
+                                <h2 className="text-2xl font-extrabold mb-6 pb-3 border-b-2 border-green-600 text-gray-900 flex items-center gap-2">
+                                    <ShoppingBasket className='w-6 h-6 text-green-600' /> Ringkasan Pesanan
                                 </h2>
 
                                 {/* Subtotal */}
-                                <div className="flex justify-between mb-4">
-                                    <span className="text-gray-700">Total Produk ({cartItems.length} Item)</span>
-                                    <span className="font-semibold">{formatRupiah(subtotal)}
+                                <div className="flex justify-between mb-4 text-lg">
+                                    <span className="text-gray-700 font-medium">Subtotal ({cartItems.length} Item)</span>
+                                    <span className="font-bold text-gray-900">{formatRupiah(subtotal)}
                                     </span>
                                 </div>
 
+                                {/* Ongkir (Dummy/Placeholder) */}
+                                <div className="flex justify-between mb-4 text-lg">
+                                    <span className="text-gray-700 font-medium flex items-center gap-1">
+                                        <Truck className='w-5 h-5 text-gray-400' /> Biaya Kirim (Internal)
+                                    </span>
+                                    <span className="font-bold text-gray-900">
+                                        Gratis
+                                    </span>
+                                </div>
+
+
                                 {/* Info Penjual */}
                                 {sellerInfo && (
-                                    <div className="flex flex-col gap-1 pt-4 border-t mb-4">
-                                        <span className="text-sm font-semibold text-gray-800 flex items-center gap-1">
-                                            <Store className="w-4 h-4" /> Penjual
+                                    <div className="flex flex-col gap-1 pt-4 border-t border-dashed mb-4">
+                                        <span className="text-sm font-semibold text-gray-700 flex items-center gap-1">
+                                            <Store className="w-4 h-4 text-purple-600" /> Penjual
                                         </span>
-                                        <span className="text-base text-blue-700 font-medium ml-1">
+                                        <span className="text-base text-blue-700 font-bold ml-1">
                                             {sellerInfo.store_name}
                                         </span>
-                                        <span className="text-sm text-gray-500 flex items-center gap-1">
-                                            <Phone className="w-4 h-4" /> No. HP: {sellerInfo.phone}
+                                        <span className="text-sm text-gray-600 flex items-center gap-1">
+                                            <Phone className="w-4 h-4" /> Kontak: {sellerInfo.phone}
                                         </span>
                                     </div>
                                 )}
@@ -597,30 +654,30 @@ Mohon konfirmasi pesanan ini dan panduan pembayarannya. Terima kasih.
 
                                 {/* Total Akhir */}
                                 <div className="flex justify-between mb-6 pt-4 border-t-2 border-gray-300">
-                                    <span className="text-lg font-bold">Total Pembayaran</span>
-                                    <span className="text-2xl font-bold text-blue-600">{formatRupiah(finalTotal)}
+                                    <span className="text-xl font-extrabold text-gray-900">Total Pembayaran</span>
+                                    <span className="text-3xl font-extrabold text-green-600">{formatRupiah(finalTotal)}
                                     </span>
                                 </div>
 
                                 {/* Checkout Button (WA) */}
                                 <Button
-                                    className="w-full bg-green-600 hover:bg-green-700 text-white py-6 text-lg font-medium mb-4"
+                                    className="w-full bg-green-600 hover:bg-green-700 text-white py-3 h-14 text-xl font-bold shadow-xl shadow-green-400/30 transition-all duration-300"
                                     onClick={handleCheckoutWA}
                                     disabled={cartItems.length === 0 || !userProfile || isCheckoutProcessing}
                                 >
                                     {isCheckoutProcessing ? (
                                         <>
-                                            <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Memproses...
+                                            <Loader2 className="w-6 h-6 mr-3 animate-spin" /> Memproses...
                                         </>
                                     ) : (
                                         <>
-                                            <FaWhatsapp className="w-6 h-6 mr-2" />
-                                            Proses Pesanan via WhatsApp
+                                            <FaWhatsapp className="w-7 h-7 mr-3" />
+                                            Proses Pesanan (WhatsApp)
                                         </>
                                     )}
                                 </Button>
 
-                                <p className='text-xs text-center text-gray-500 mt-2'>*Pembayaran dilakukan langsung ke Penjual via WhatsApp.</p>
+                                <p className='text-xs text-center text-gray-500 mt-3'>*Pembayaran dilakukan langsung ke Penjual via WhatsApp untuk konfirmasi pesanan.</p>
 
                             </CardContent>
                         </Card>
@@ -632,9 +689,9 @@ Mohon konfirmasi pesanan ini dan panduan pembayarannya. Terima kasih.
                 ALERT DIALOG KONFIRMASI BERSIHKAN KERANJANG
             //////////////////////////////////////////////////////////////////////////////// */}
             <AlertDialog open={isClearCartDialogOpen} onOpenChange={setIsClearCartDialogOpen}>
-                <AlertDialogContent>
+                <AlertDialogContent className='rounded-xl shadow-xl'>
                     <AlertDialogHeader>
-                        <AlertDialogTitle className="flex items-center text-xl text-red-600">
+                        <AlertDialogTitle className="flex items-center text-2xl font-bold text-red-600">
                             <Trash2 className='w-6 h-6 mr-2' /> Konfirmasi Bersihkan Keranjang
                         </AlertDialogTitle>
                         <AlertDialogDescription>
@@ -642,10 +699,10 @@ Mohon konfirmasi pesanan ini dan panduan pembayarannya. Terima kasih.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                        <AlertDialogCancel className='font-semibold'>Batal</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={handleClearCart}
-                            className='bg-red-600 hover:bg-red-700'
+                            className='bg-red-600 hover:bg-red-700 font-semibold'
                         >
                             Ya, Bersihkan Sekarang
                         </AlertDialogAction>
