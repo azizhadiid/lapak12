@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { FileText, LayoutDashboard, LogOut, Menu, Package, User, Users, X } from "lucide-react";
 import Link from "next/link"; // <-- Impor Link
 import { usePathname } from "next/navigation"; // <-- Impor usePathname
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export default function NavbarPenjual() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -60,8 +61,10 @@ export default function NavbarPenjual() {
                         {/* Tombol Logout Terpisah */}
                         <button
                             onClick={async () => {
-                                await fetch("/api/auth/signout", { method: "POST" });
-                                window.location.href = "/login"; // redirect setelah logout
+                                const supabase = createClientComponentClient();
+                                await supabase.auth.signOut();
+
+                                window.location.href = "/login";
                             }}
                             className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 text-gray-600 hover:bg-red-50 hover:text-red-600"
                         >

@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { LogOut, Menu, X } from "lucide-react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export default function NavbarAdmin() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -28,8 +29,10 @@ export default function NavbarAdmin() {
                     <nav className="hidden md:flex space-x-1 items-center">
                         <button
                             onClick={async () => {
-                                await fetch("/api/auth/signout", { method: "POST" });
-                                window.location.href = "/login"; // redirect setelah logout
+                                const supabase = createClientComponentClient();
+                                await supabase.auth.signOut();
+
+                                window.location.href = "/login";
                             }}
                             className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 text-gray-600 hover:bg-red-50 hover:text-red-600"
                         >

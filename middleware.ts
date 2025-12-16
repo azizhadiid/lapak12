@@ -25,7 +25,7 @@ export async function middleware(req: NextRequest) {
     if (!session) {
         // Jika guest mencoba mengakses halaman yang diproteksi, redirect ke login
         if (pathname.startsWith('/admin') || pathname.startsWith('/penjual') || pathname.startsWith('/keranjang') || pathname.startsWith('/home') || pathname.startsWith('/product') || pathname.startsWith('/profile')) {
-            return NextResponse.redirect(loginUrl);
+            return NextResponse.redirect(loginUrl, { headers: res.headers });
         }
         // Jika guest di halaman auth (login/register), biarkan
         if (isAuthPage) {
@@ -47,7 +47,9 @@ export async function middleware(req: NextRequest) {
             .single();
 
         const role = userData?.role || 'pembeli';
-        return NextResponse.redirect(new URL(getHomePath(role), req.url));
+        return NextResponse.redirect(new URL(getHomePath(role), req.url), {
+            headers: res.headers,
+        });
     }
 
 
@@ -61,8 +63,8 @@ export async function middleware(req: NextRequest) {
     if (userError || !userData) {
         console.error('Middleware Error: Gagal mengambil role. Mengarahkan ke logout.');
         // Jika gagal ambil role, paksa signout agar sesi bersih
-        await supabase.auth.signOut();
-        return NextResponse.redirect(loginUrl);
+        // await supabase.auth.signOut();
+        return NextResponse.redirect(loginUrl, { headers: res.headers });
     }
 
     const role = userData.role;
@@ -73,18 +75,24 @@ export async function middleware(req: NextRequest) {
 
     // Semua harus startswith homePath mereka kecuali /home, /product, /keranjang (yang sifatnya publik)
     if (role === 'admin' && !pathname.startsWith('/admin')) {
-        return NextResponse.redirect(new URL(homePath, req.url));
+        return NextResponse.redirect(new URL(homePath, req.url), {
+            headers: res.headers,
+        });
     }
     else if (role === 'penjual' && !pathname.startsWith('/penjual')) {
         // Penjual diizinkan melihat /product, /home, /keranjang
         if (pathname.startsWith('/home') || pathname.startsWith('/product') || pathname.startsWith('/keranjang')) {
             return res;
         }
-        return NextResponse.redirect(new URL(homePath, req.url));
+        return NextResponse.redirect(new URL(homePath, req.url), {
+            headers: res.headers,
+        });
     }
     else if (role === 'pembeli' && (pathname.startsWith('/admin') || pathname.startsWith('/penjual'))) {
         // Pembeli dilarang akses admin atau penjual
-        return NextResponse.redirect(new URL(homePath, req.url));
+        return NextResponse.redirect(new URL(homePath, req.url), {
+            headers: res.headers,
+        });
     }
 
 
