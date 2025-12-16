@@ -1,28 +1,23 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { NextResponse } from "next/server";
 
-export async function POST(req: NextRequest) {
-    const supabase = createRouteHandlerClient({ cookies });
+export async function POST() {
+    // Daftar cookie yang ingin kamu hapus
 
-    try {
-        // Hapus sesi pengguna (logout)
-        const { error } = await supabase.auth.signOut();
 
-        if (error) {
-            console.error("Supabase signOut Error:", error);
-            // Jika ada error dari Supabase, kita tetap coba redirect
-        }
+    const cookiesToDelete = [
+        "__next_hmr_refresh_hash__",   // contohnya dari gambar yang kamu kirim
+        "sb-zmhvafeistkzljdxwxwk-auth-token",
+    ];
 
-    } catch (e) {
-        // Ini menangkap error jika Supabase client gagal inisialisasi (misal, karena Env Vars)
-        console.error("Critical Logout Error:", e);
-        // Penting: Meskipun terjadi error, kita harus tetap mencoba redirect
-    }
+    const response = NextResponse.json({ message: "Logged out" });
 
-    // Arahkan pengguna kembali ke halaman login.
-    return NextResponse.redirect(new URL('/login', req.url), {
-        status: 302,
+    // Hapus semua cookie yang disebutkan
+    cookiesToDelete.forEach((cookieName) => {
+        response.cookies.set(cookieName, "", {
+            path: "/",
+            expires: 0,
+        });
     });
+
+    return response;
 }

@@ -24,7 +24,7 @@ export async function middleware(req: NextRequest) {
     // --- 2. LOGIKA UNTUK GUEST (BELUM LOGIN) ---
     if (!session) {
         // Jika guest mencoba mengakses halaman yang diproteksi, redirect ke login
-        if (pathname.startsWith('/admin') || pathname.startsWith('/penjual') || pathname.startsWith('/keranjang')) {
+        if (pathname.startsWith('/admin') || pathname.startsWith('/penjual') || pathname.startsWith('/keranjang') || pathname.startsWith('/home')) {
             return NextResponse.redirect(loginUrl);
         }
         // Jika guest di halaman auth (login/register), biarkan

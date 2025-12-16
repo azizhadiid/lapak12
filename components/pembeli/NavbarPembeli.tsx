@@ -58,15 +58,16 @@ export default function NavbarPembeli() {
                                 );
                             })}
                             {/* Tombol Logout Terpisah */}
-                            <form action="/api/auth/signout" method="post">
-                                <button
-                                    type="submit"
-                                    className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 text-gray-600 hover:bg-red-50 hover:text-red-600"
-                                >
-                                    <LogOut className="w-4 h-4" />
-                                    <span className="font-medium">Logout</span>
-                                </button>
-                            </form>
+                            <button
+                                onClick={async () => {
+                                    await fetch("/api/auth/signout", { method: "POST" });
+                                    window.location.href = "/login"; // redirect setelah logout
+                                }}
+                                className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 text-gray-600 hover:bg-red-50 hover:text-red-600"
+                            >
+                                <LogOut className="w-4 h-4" />
+                                <span className="font-medium">Logout</span>
+                            </button>
                         </nav>
 
                         {/* Mobile Menu Button */}
@@ -100,16 +101,16 @@ export default function NavbarPembeli() {
                                 );
                             })}
                             {/* Tombol Logout Terpisah (Mobile) */}
-                            <form action="/api/auth/signout" method="post">
-                                <button
-                                    type="submit"
-                                    className="flex items-center space-x-3 w-full px-4 py-3 rounded-lg transition-all text-gray-600 hover:bg-red-50 hover:text-red-600"
-                                >
-                                    <LogOut className="w-5 h-5" />
-                                    <span className="font-medium">Logout</span>
-                                </button>
-                            </form>
-
+                            <button
+                                onClick={async () => {
+                                    await fetch("/api/auth/signout", { method: "POST" });
+                                    window.location.href = "/login"; // redirect setelah logout
+                                }}
+                                className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 text-gray-600 hover:bg-red-50 hover:text-red-600"
+                            >
+                                <LogOut className="w-4 h-4" />
+                                <span className="font-medium">Logout</span>
+                            </button>
                         </nav>
                     )}
                 </div>
