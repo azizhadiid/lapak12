@@ -276,7 +276,7 @@ export default function ManajemenPenjualPage() {
                     <Card className="border-red-200 bg-gradient-to-br from-red-50 to-white">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-gray-600">
-                                Pemebli Tidak Direkomendasikan
+                                Pembeli Tidak Direkomendasikan
                             </CardTitle>
                             <UserX className="h-4 w-4 text-red-600" />
                         </CardHeader>
