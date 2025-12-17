@@ -23,5 +23,5 @@ export type ProfilePembeliData = {
     foto_url: string | null;
 
     // Dari tabel alamat (untuk nanti)
-    addresses: AddressType[];
+    address: string | null;
 };

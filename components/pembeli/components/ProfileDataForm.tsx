@@ -93,11 +93,12 @@ export default function ProfileDataForm({
                         <label className="block text-sm font-medium text-gray-700 mb-2">Nomor Telepon</label>
                         {isEditing ? (
                             <input
-                                type="tel"
+                                type="number"
                                 name="phone"
                                 value={editData.phone || ''}
                                 onChange={handleChange}
                                 className="w-full px-4 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                                placeholder="624567891235"
                             />
                         ) : (
                             <div className="px-4 py-2 bg-blue-50 rounded-lg text-gray-800">
@@ -112,13 +113,14 @@ export default function ProfileDataForm({
                         {isEditing ? (
                             <input
                                 type="text"
-                                name="address"
+                                name="address" // <-- Pastikan name="address" (Sesuai skema DB)
+                                value={editData.address || ''} // <-- TAMBAHKAN VALUE
                                 onChange={handleChange}
                                 className="w-full px-4 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                             />
                         ) : (
                             <div className="px-4 py-2 bg-blue-50 rounded-lg text-gray-800">
-                                <span className="text-gray-400 italic">Belum diatur</span>
+                                {profileData.address || <span className="text-gray-400 italic">Belum diatur</span>}
                             </div>
                         )}
                     </div>

@@ -9,6 +9,7 @@ import { ProfilePembeliData } from "@/lib/types/profilePembeli";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import Swal from 'sweetalert2';
 
 const defaultProfile: ProfilePembeliData = {
     username: 'Memuat...',
@@ -18,7 +19,7 @@ const defaultProfile: ProfilePembeliData = {
     gender: null,
     birth_date: null,
     foto_url: null,
-    addresses: [] // (Untuk nanti)
+    address: null // (Untuk nanti)
 };
 
 export default function ProfilePembeliPage() {
@@ -121,80 +122,183 @@ export default function ProfilePembeliPage() {
     // === 4. HANDLER SIMPAN (UPDATE) ===
     const handleSave = async () => {
         setIsLoading(true);
-        setErrorMessage(null);
+        setErrorMessage(null); // Reset error message lokal
 
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("Sesi berakhir. Silakan login ulang.");
 
-            let updatedFotoUrl = editData.foto_url; // Default-nya adalah URL yang lama
+            // --- 1. VALIDASI KLIEN (Sesuai Permintaan Anda) ---
+            // Mengubah phone dari string (input) ke BigInt (DB) akan terjadi otomatis di Supabase/PostgREST
+            // Namun, pastikan nilainya berupa angka dan tidak mengandung string terlarang.
 
-            // --- A. Proses Upload Foto Jika Ada File Baru ---
+            // Hapus 'string' dan 'uniq' dari phone (walaupun tipe input="number" harusnya mencegah)
+            if (editData.phone !== null && typeof editData.phone === 'string') {
+                const phoneAsString = editData.phone.toString().toLowerCase();
+                if (phoneAsString.includes("string") || phoneAsString.includes("uniq")) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal Menyimpan',
+                        text: 'Nomor telepon tidak boleh mengandung string "string" atau "uniq".',
+                        confirmButtonText: 'OK'
+                    });
+                    setIsLoading(false);
+                    return;
+                }
+            }
+
+            // --- 2. Filter Data yang Berubah dan Siapkan dataToUpsert ---
+            const changedData: Partial<ProfilePembeliData> = {};
+
+            // Bandingkan setiap field yang diizinkan untuk di-update
+            const updatableFields: Array<keyof ProfilePembeliData> = [
+                'full_name', 'phone', 'gender', 'birth_date', 'address'
+            ];
+
+            let isDataChanged = false;
+
+            for (const key of updatableFields) {
+                // Perbandingan harus menangani null/string/number dengan aman
+
+                // Jika input kosong (''), konversi ke null agar sesuai skema DB (jika nullable)
+                const newValue = editData[key] === '' ? null : editData[key];
+                const oldValue = profileData[key] === '' ? null : profileData[key];
+
+                // Khusus untuk phone, Supabase mungkin mengembalikan BigInt (number), tapi input kita string.
+                // Menggunakan JSON.stringify untuk perbandingan yang lebih aman antara number/string/null
+                if (JSON.stringify(newValue) !== JSON.stringify(oldValue)) {
+                    changedData[key] = newValue as any;
+                    isDataChanged = true;
+                }
+            }
+
+            let updatedFotoUrl = editData.foto_url;
+
+            // Tambahkan foto_url jika ada file baru, terlepas dari apakah foto_url sebelumnya berbeda
+            if (selectedFile) {
+                isDataChanged = true; // Perubahan foto juga termasuk perubahan
+            } else if (updatedFotoUrl !== profileData.foto_url) {
+                isDataChanged = true; // Jika foto_url di-reset secara manual
+            }
+
+
+            // --- Cek Jika Tidak Ada Perubahan ---
+            if (!isDataChanged) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Tidak Ada Perubahan',
+                    text: 'Tidak ada data profil yang diubah untuk disimpan.',
+                    confirmButtonText: 'OK'
+                });
+                setIsLoading(false);
+                setIsEditing(false);
+                return;
+            }
+
+            // --- 3. Proses Upload Foto Jika Ada File Baru ---
             if (selectedFile) {
                 const fileExt = selectedFile.name.split('.').pop();
-                // Gunakan User ID sebagai nama file agar unik dan menimpa
                 const filePath = `${user.id}.${fileExt}`;
 
                 const { error: uploadError } = await supabase.storage
-                    .from('profile-foto-pembeli') // Nama bucket Anda
+                    .from('profile-foto-pembeli')
                     .upload(filePath, selectedFile, {
-                        upsert: true, // Timpa file lama jika ada
+                        upsert: true,
                         cacheControl: '3600'
                     });
 
                 if (uploadError) throw new Error(`Gagal upload foto: ${uploadError.message}`);
 
-                // Dapatkan URL publik dari file yang baru diupload
                 const { data: urlData } = supabase.storage
                     .from('profile-foto-pembeli')
                     .getPublicUrl(filePath);
 
-                // Tambahkan timestamp untuk 'cache-busting' (agar browser ambil file baru)
                 updatedFotoUrl = `${urlData.publicUrl}?t=${new Date().getTime()}`;
+                changedData.foto_url = updatedFotoUrl; // Masukkan URL baru ke data yang di-upsert
+            } else {
+                // Jika tidak ada upload, pastikan foto_url yang lama tetap dikirim 
+                // JIKA FOTO_URL adalah satu-satunya perubahan (walaupun ini jarang terjadi)
+                changedData.foto_url = updatedFotoUrl;
             }
 
-            // --- B. Siapkan Data Teks untuk di-Upsert ---
+
+            // --- 4. Lakukan Upsert ke 'profile_pembeli' ---
             const dataToUpsert = {
                 id: user.id, // Kunci utama untuk UPSERT
-                full_name: editData.full_name,
-                phone: editData.phone,
-                gender: editData.gender,
-                birth_date: editData.birth_date,
-                foto_url: updatedFotoUrl, // URL baru (jika diupload) atau URL lama
-                // updated_at akan di-handle oleh trigger di DB
+                ...changedData, // Hanya data yang berubah + foto_url
             };
 
-            // --- C. Lakukan Upsert ke 'profile_pembeli' ---
+            // Hapus 'addresses' jika ada, karena bukan kolom di profile_pembeli
+            delete (dataToUpsert as any).addresses;
+
+
             const { data: upsertedData, error: upsertError } = await supabase
                 .from('profile_pembeli')
                 .upsert(dataToUpsert)
-                .select() // Kembalikan data yang baru di-update
+                .select()
                 .single();
 
             if (upsertError) {
-                // RLS Policy mungkin menolak
+                // TANGANI ERROR DUPLIKAT (UNIQUE VIOLATION)
+                // Kode 23505 adalah error Unique/Primary Key Violation di PostgreSQL/Supabase
+                if (upsertError.code === '23505') {
+                    // Cek apakah errornya spesifik untuk kolom 'phone'
+                    if (upsertError.message.includes('profile_pembeli_phone_unique')) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Gagal Menyimpan!',
+                            text: 'Nomor telepon yang Anda masukkan sudah terdaftar/digunakan oleh akun lain.',
+                            confirmButtonText: 'Coba Lagi'
+                        });
+                        setIsLoading(false);
+                        return; // Hentikan proses
+                    }
+                }
+
+                // Tangani error RLS atau error umum lainnya
                 if (upsertError.code === '42501') {
                     throw new Error("Akses ditolak. Pastikan role Anda adalah 'pembeli'.");
                 }
                 throw upsertError;
             }
 
-            // --- D. Sukses! Update State Lokal ---
+            // --- 5. Sukses! Update State Lokal dan Tampilkan SweetAlert Sukses ---
             if (upsertedData) {
                 const finalUpdatedData = {
-                    ...profileData, // Ambil username & email dari state lama
-                    ...upsertedData // Timpa sisanya dengan data baru dari DB
+                    ...profileData, // username & email dari state lama (tidak di-update)
+                    ...upsertedData // data baru dari DB
                 };
                 setProfileData(finalUpdatedData);
                 setEditData(finalUpdatedData);
+                setImagePreview(finalUpdatedData.foto_url); // Update image preview
+
+                // SweetAlert Sukses
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil!',
+                    text: 'Data profil Anda telah berhasil diperbarui.',
+                    timer: 3000,
+                    timerProgressBar: true,
+                    showConfirmButton: false
+                });
             }
 
             setIsEditing(false);
-            setSelectedFile(null); // Bersihkan file yang dipilih
+            setSelectedFile(null);
 
         } catch (error) {
             console.error("Error simpan profil:", (error as Error).message);
-            setErrorMessage((error as Error).message);
+
+            // Tampilkan error umum atau RLS error menggunakan SweetAlert
+            const errorMessageText = (error as Error).message;
+
+            Swal.fire({
+                icon: 'error',
+                title: 'Terjadi Kesalahan',
+                text: errorMessageText,
+                confirmButtonText: 'OK'
+            });
+
         } finally {
             setIsLoading(false);
         }

@@ -388,6 +388,16 @@ CREATE TABLE IF NOT EXISTS public.profile_pembeli (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Ubah tipe data phone dari TEXT ke BIGINT
+ALTER TABLE public.profile_pembeli
+ALTER COLUMN phone TYPE BIGINT
+USING phone::BIGINT;
+
+-- Tambahkan constraint UNIQUE
+ALTER TABLE public.profile_pembeli
+ADD CONSTRAINT profile_pembeli_phone_unique UNIQUE (phone);
+
+
 -- /////////////////////////////////////////////////////////////////////////////////
 -- Trigger untuk auto-update kolom updated_at setiap kali data berubah
 -- (gunakan fungsi yang sudah ada jika kamu sudah buat sebelumnya)
@@ -644,6 +654,81 @@ WITH CHECK (
     auth.uid() = penjual_id
 );
 */
+
+-- /////////////////////////////////////////////////////////////////////////////////
+-- Bagian Pencatatan Penjual (LOGIKA UPDATE STOK)
+-- /////////////////////////////////////////////////////////////////////////////////
+
+-- 1. Buat fungsi untuk menyesuaikan stok produk setelah UPDATE penjualan
+CREATE OR REPLACE FUNCTION public.update_stok_after_penjualan_update()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER -- PENTING: Agar fungsi bisa menulis ke tabel 'produk' (bypass RLS)
+SET search_path = public, auth
+AS $$
+DECLARE
+    stok_change INTEGER;
+    current_stok INTEGER;
+BEGIN
+    -- Hanya jalankan jika kolom 'jumlah' berubah (atau produk_id berubah)
+    IF OLD.jumlah IS DISTINCT FROM NEW.jumlah OR OLD.produk_id IS DISTINCT FROM NEW.produk_id THEN
+
+        -- Case 1: Produk yang direferensikan berubah (Contoh: Mengganti produk A menjadi produk B)
+        IF OLD.produk_id IS DISTINCT FROM NEW.produk_id THEN
+            -- 1a. Kembalikan stok untuk produk lama
+            UPDATE public.produk
+            SET stok = stok + OLD.jumlah
+            WHERE id = OLD.produk_id;
+
+            -- 1b. Kurangi stok untuk produk baru
+            SELECT stok INTO current_stok
+            FROM public.produk
+            WHERE id = NEW.produk_id;
+
+            IF current_stok < NEW.jumlah THEN
+                RAISE EXCEPTION 'Gagal: Stok produk baru (ID: %) tidak cukup (% unit)', NEW.produk_id, current_stok;
+            END IF;
+
+            UPDATE public.produk
+            SET stok = stok - NEW.jumlah
+            WHERE id = NEW.produk_id;
+
+        -- Case 2: Hanya Jumlah yang berubah (Produk tetap sama)
+        ELSE
+            -- Hitung perubahan stok: stok_change = OLD.jumlah - NEW.jumlah
+            -- Jika NEW.jumlah > OLD.jumlah (dijual lebih banyak), stok_change negatif (stok harus dikurangi lagi).
+            -- Jika NEW.jumlah < OLD.jumlah (dijual lebih sedikit), stok_change positif (stok harus dikembalikan).
+            stok_change := OLD.jumlah - NEW.jumlah;
+
+            -- Jika stok harus dikurangi lagi (stok_change negatif)
+            IF stok_change < 0 THEN
+                -- Periksa apakah stok produk saat ini cukup untuk pengurangan tambahan ini
+                SELECT stok INTO current_stok
+                FROM public.produk
+                WHERE id = NEW.produk_id;
+
+                IF current_stok < (NEW.jumlah - OLD.jumlah) THEN
+                    RAISE EXCEPTION 'Gagal: Stok hanya tersisa %, tidak cukup untuk pengurangan tambahan %', current_stok, (NEW.jumlah - OLD.jumlah);
+                END IF;
+            END IF;
+            
+            -- Lakukan penyesuaian stok
+            UPDATE public.produk
+            SET stok = stok + stok_change,
+                updated_at = now()
+            WHERE id = NEW.produk_id;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- 2. Buat trigger yang memanggil fungsi di atas SEBELUM UPDATE di tabel 'penjualan'
+CREATE TRIGGER sesuaikan_stok_update_trigger
+BEFORE UPDATE ON public.penjualan
+FOR EACH ROW
+EXECUTE PROCEDURE public.update_stok_after_penjualan_update();
 -- /////////////////////////////////////////////////////////////////////////////////
 -- End Pencatatan Penjual
 -- /////////////////////////////////////////////////////////////////////////////////
@@ -874,3 +959,10 @@ USING (
 -- End TABEL ULASAN
 -- /////////////////////////////////////////////////////////////////////////////////
 
+-- Untuk Login
+CREATE POLICY "Allow read own role"
+ON public.users
+FOR SELECT
+USING (
+  auth.uid() = id
+);
