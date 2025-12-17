@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 // Icon
 import { AlertCircle, Camera, Check, Edit2, Loader2, Mail, MapPin, Phone } from "lucide-react";
+import Swal from 'sweetalert2';
 
 export default function FormProfilePenjual() {
     // Nilai Default
@@ -129,25 +130,69 @@ export default function FormProfilePenjual() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("Sesi berakhir. Silakan login ulang.");
 
-            const dataToUpsert: {
-                id: string;
-                store_name: string;
-                owner_name: string;
-                phone: string;
-                address: string;
-                description: string;
-                updated_at: string;
-                foto_url?: string;
-            } = {
-                id: user.id,
-                store_name: editData.store_name,
-                owner_name: editData.owner_name,
-                phone: editData.phone,
-                address: editData.address,
-                description: editData.description,
-                updated_at: new Date().toISOString(),
-            };
+            // --- 1. VALIDASI KLIEN ---
+            const phoneAsString = editData.phone.toString().toLowerCase();
 
+            // Cek string terlarang
+            if (phoneAsString.includes("string") || phoneAsString.includes("uniq")) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Gagal Menyimpan',
+                    text: 'Nomor telepon tidak boleh mengandung string "string" atau "uniq".',
+                    confirmButtonText: 'OK'
+                });
+                setIsLoading(false);
+                return;
+            }
+
+            // --- 2. Filter Data yang Berubah dan Siapkan dataToUpsert ---
+            const updatableFields: Array<keyof ProfileData> = [
+                'store_name', 'owner_name', 'phone', 'address', 'description', 'foto_url'
+            ];
+
+            const changedData: Partial<ProfileData> = {};
+            let isDataChanged = false;
+
+            // Bandingkan field yang dapat diubah dengan data asli (profileData)
+            for (const key of updatableFields) {
+                const newValue = editData[key] === '' ? null : editData[key];
+                const oldValue = profileData[key] === '' ? null : profileData[key];
+
+                // Menggunakan JSON.stringify untuk perbandingan string, number, atau null yang aman
+                if (JSON.stringify(newValue) !== JSON.stringify(oldValue)) {
+                    // Hapus 'foto_url' dari changedData jika tidak ada file baru yang dipilih,
+                    // karena 'foto_url' akan ditangani secara terpisah.
+                    if (key === 'foto_url' && !selectedFile) {
+                        // Jangan masukkan foto_url jika hanya foto_url yang berubah tapi tidak ada file baru (misal user menghapus URL secara manual)
+                        // Kita biarkan saja logic ini untuk sekarang, dan fokus pada phone.
+                    } else {
+                        changedData[key] = newValue as any;
+                        isDataChanged = true;
+                    }
+                }
+            }
+
+            let updatedFotoUrl = editData.foto_url;
+
+            // Periksa perubahan file foto
+            if (selectedFile) {
+                isDataChanged = true;
+            }
+
+            // --- Cek Jika Tidak Ada Perubahan ---
+            if (!isDataChanged) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Tidak Ada Perubahan',
+                    text: 'Tidak ada data profil yang diubah untuk disimpan.',
+                    confirmButtonText: 'OK'
+                });
+                setIsLoading(false);
+                setIsEditing(false);
+                return;
+            }
+
+            // --- 3. Proses Upload Foto Jika Ada File Baru ---
             if (selectedFile) {
                 const fileExt = selectedFile.name.split('.').pop();
                 const filePath = `${user.id}.${fileExt}`;
@@ -164,32 +209,83 @@ export default function FormProfilePenjual() {
                     .from('profile-foto-penjual')
                     .getPublicUrl(filePath);
 
-                dataToUpsert.foto_url = `${urlData.publicUrl}?t=${new Date().getTime()}`;
+                updatedFotoUrl = `${urlData.publicUrl}?t=${new Date().getTime()}`;
+                changedData.foto_url = updatedFotoUrl; // Masukkan URL baru ke changedData
+            } else {
+                // Pastikan foto_url yang lama atau null tetap dimasukkan jika ada perubahan lain
+                if (updatedFotoUrl !== profileData.foto_url) {
+                    changedData.foto_url = updatedFotoUrl;
+                }
             }
 
-            const { data: upsertedData, error } = await supabase
+
+            // --- 4. Lakukan Upsert ke 'profile_penjual' ---
+            const dataToUpsert = {
+                id: user.id,
+                ...changedData,
+            };
+
+            const { data: upsertedData, error: upsertError } = await supabase
                 .from('profile_penjual')
                 .upsert(dataToUpsert)
                 .select()
                 .single();
 
-            if (error) {
-                throw error;
+            if (upsertError) {
+                // TANGANI ERROR DUPLIKAT (UNIQUE VIOLATION)
+                if (upsertError.code === '23505') {
+                    // Cek apakah errornya spesifik untuk kolom 'phone' (sesuai constraint yang dibuat di query.sql)
+                    if (upsertError.message.includes('profile_penjual_phone_unique')) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Gagal Menyimpan!',
+                            text: 'Nomor telepon ini sudah digunakan oleh akun toko lain. Silakan gunakan nomor telepon yang berbeda.',
+                            confirmButtonText: 'Coba Lagi'
+                        });
+                        setIsLoading(false);
+                        return; // Hentikan proses
+                    }
+                }
+                throw upsertError;
             }
 
             if (upsertedData) {
                 setProfileData({
                     ...profileData,
-                    ...upsertedData
+                    ...upsertedData as ProfileData // Pastikan tipe data sesuai
+                });
+                setEditData({
+                    ...editData,
+                    ...upsertedData as ProfileData
                 });
             }
+
+            // SweetAlert Sukses
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil!',
+                text: 'Data profil toko Anda telah berhasil diperbarui.',
+                timer: 3000,
+                timerProgressBar: true,
+                showConfirmButton: false
+            });
 
             setIsEditing(false);
             setSelectedFile(null);
 
         } catch (error) {
             console.error("Error simpan profil:", (error as Error).message);
-            setErrorMessage((error as Error).message);
+
+            // Tampilkan error umum atau RLS error menggunakan SweetAlert jika belum ditampilkan di blok 23505
+            const errorMessageText = (error as Error).message;
+
+            Swal.fire({
+                icon: 'error',
+                title: 'Terjadi Kesalahan',
+                text: errorMessageText,
+                confirmButtonText: 'OK'
+            });
+
         } finally {
             setIsLoading(false);
         }

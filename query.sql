@@ -214,6 +214,17 @@ CREATE TABLE IF NOT EXISTS public.profile_penjual (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Ubah tipe data phone dari TEXT ke BIGINT
+ALTER TABLE public.profile_penjual
+ALTER COLUMN phone TYPE BIGINT
+USING phone::BIGINT;
+
+-- Tambahkan constraint UNIQUE
+ALTER TABLE public.profile_penjual
+ADD CONSTRAINT profile_penjual_phone_unique UNIQUE (phone);
+
+
+
 -- 2. Buat trigger 'updated_at' (Fungsi ini mungkin sudah ada dari tabel 'produk')
 -- Anda hanya perlu 'CREATE OR REPLACE FUNCTION' satu kali per database
 CREATE OR REPLACE FUNCTION public.handle_updated_at()
