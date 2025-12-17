@@ -389,6 +389,11 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
             showNotification('error', "Stok tidak mencukupi!");
             return;
         }
+        // Menambahkan validasi jika nomor telepon penjual tidak ada
+        if (!product.profile_penjual?.phone) {
+            showNotification('error', "Nomor telepon penjual tidak tersedia.");
+            return;
+        }
         setTransactionStatus('idle');
         setIsDialogOpen(true);
     };
@@ -403,10 +408,41 @@ export default function DetailProductPembeli({ params }: { params: { id: string 
         setErrorMessage('');
 
         const total_harga_transaksi = product.harga * quantity;
-        const waNumber = product.profile_penjual?.phone;
+
+        // Mengambil waNumber dari state (sudah dipastikan string atau null di fetchData)
+        const waNumberRaw = product.profile_penjual?.phone;
         const storeName = product.profile_penjual?.store_name || "Penjual";
 
-        if (waNumber) {
+        if (waNumberRaw) {
+
+            // --- KOREKSI UTAMA: PENANGANAN FORMAT NOMOR WA ---
+            // 1. Bersihkan semua karakter non-angka
+            // Karena waNumberRaw sekarang dijamin string, .replace() aman.
+            const cleanNumber = waNumberRaw.replace(/\D/g, '');
+
+            // 2. Format menjadi prefix 62
+            let finalWaNumber: string;
+
+            if (cleanNumber.startsWith('62')) {
+                // Sudah dimulai dengan 62
+                finalWaNumber = cleanNumber;
+            } else if (cleanNumber.startsWith('0')) {
+                // Dimulai dengan 0, ganti 0 dengan 62 (misal: 0812... -> 62812...)
+                finalWaNumber = `62${cleanNumber.substring(1)}`;
+            } else {
+                // Angka lain, tambahkan 62 di depan (misal: 812... -> 62812...)
+                finalWaNumber = `62${cleanNumber}`;
+            }
+
+            // Validasi minimal panjang (opsional)
+            if (finalWaNumber.length < 9) {
+                setErrorMessage("Nomor telepon penjual tidak valid setelah diformat.");
+                setTransactionStatus('error');
+                return;
+            }
+            // --- AKHIR KOREKSI ---
+
+
             const waMessage = `
 Halo ${storeName}, saya *${userProfile.username}* (${userProfile.email}) ingin memesan produk:
 ------------------------------------------
@@ -419,7 +455,9 @@ Mohon konfirmasi pesanan saya. Terima kasih.
             `.trim();
 
             const encodedMessage = encodeURIComponent(waMessage);
-            const waUrl = `https://wa.me/${waNumber.replace(/\D/g, '')}?text=${encodedMessage}`;
+
+            // Gunakan finalWaNumber yang sudah bersih dan terformat
+            const waUrl = `https://wa.me/${finalWaNumber}?text=${encodedMessage}`;
 
             setTransactionStatus('success');
 
@@ -517,7 +555,7 @@ Mohon konfirmasi pesanan saya. Terima kasih.
                     jenis_produk: data.jenis_produk,
                     profile_penjual: rawProfile ? {
                         store_name: rawProfile.store_name as string,
-                        phone: rawProfile.phone as string,
+                        phone: rawProfile.phone ? String(rawProfile.phone) : null,
                         status: rawProfile.status as boolean,
                     } : null,
                 };

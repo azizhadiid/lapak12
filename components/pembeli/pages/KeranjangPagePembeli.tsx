@@ -163,7 +163,7 @@ export default function KeranjangPagePembeli() {
                         gambar: rawProduct.gambar as string,
                         profile_penjual: {
                             store_name: (rawProfile?.store_name as string | undefined) || "Toko Tidak Dikenal",
-                            phone: (rawProfile?.phone as string | undefined) || "N/A",
+                            phone: rawProfile?.phone ? String(rawProfile.phone) : "N/A",
                             status: (rawProfile?.status as boolean | undefined) ?? false,
                         }
                     }
@@ -206,18 +206,42 @@ export default function KeranjangPagePembeli() {
             return;
         }
 
-        const waNumber = sellerInfo.phone;
+        const waNumberRaw = sellerInfo.phone;
         const storeName = sellerInfo.store_name;
         const totalHarga = formatRupiah(subtotal);
         const buyerName = userProfile.username;
         const buyerEmail = userProfile.email;
         const currentUserId = userProfile.id;
 
-        if (!waNumber || waNumber === "N/A") {
+        if (!waNumberRaw || waNumberRaw === "N/A") {
             showNotification('error', `Nomor WhatsApp Toko ${storeName} tidak ditemukan.`);
             setIsCheckoutProcessing(false);
             return;
         }
+
+        // --- KOREKSI FORMAT NOMOR WA ---
+        // 1. Bersihkan semua karakter non-angka
+        const cleanNumber = waNumberRaw.replace(/\D/g, '');
+
+        // 2. Format menjadi prefix 62
+        let finalWaNumber: string;
+
+        if (cleanNumber.startsWith('62')) {
+            finalWaNumber = cleanNumber;
+        } else if (cleanNumber.startsWith('0')) {
+            finalWaNumber = `62${cleanNumber.substring(1)}`;
+        } else {
+            finalWaNumber = `62${cleanNumber}`;
+        }
+
+        // Validasi minimal panjang (opsional)
+        if (finalWaNumber.length < 9) {
+            showNotification('error', "Nomor telepon penjual tidak valid setelah diformat.");
+            setIsCheckoutProcessing(false);
+            return;
+        }
+        // --- AKHIR KOREKSI FORMAT ---
+
 
         // 1. Buat Pesan Detail Item
         const itemDetails = cartItems.map((item, index) =>
@@ -238,7 +262,9 @@ Mohon konfirmasi pesanan ini dan panduan pembayarannya. Terima kasih.
         `.trim();
 
         const encodedMessage = encodeURIComponent(waMessage);
-        const waUrl = `https://wa.me/${waNumber.replace(/\D/g, '')}?text=${encodedMessage}`;
+
+        // Gunakan finalWaNumber yang sudah bersih dan terformat
+        const waUrl = `https://wa.me/${finalWaNumber}?text=${encodedMessage}`;
 
         // 3. Arahkan ke WhatsApp
         window.open(waUrl, '_blank');
@@ -251,7 +277,6 @@ Mohon konfirmasi pesanan ini dan panduan pembayarannya. Terima kasih.
                 .eq('user_id', currentUserId);
 
             if (deleteError) {
-                // Notifikasi ke user bahwa keranjang gagal dikosongkan (meski WA sudah terkirim)
                 console.error("Gagal membersihkan keranjang setelah checkout:", deleteError);
                 showNotification('error', 'Pesanan terkirim via WA, namun gagal mengosongkan keranjang di sistem.');
             } else {
@@ -262,7 +287,7 @@ Mohon konfirmasi pesanan ini dan panduan pembayarannya. Terima kasih.
             fetchCartItems();
             setIsCheckoutProcessing(false);
 
-        }, 1000); // Tunggu 1 detik sebelum membersihkan DB
+        }, 1000);
     };
 
 
